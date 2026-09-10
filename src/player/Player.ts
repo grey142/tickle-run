@@ -237,24 +237,35 @@ export class Player {
       this.mesh.scale.set(1, 1, 1);
       this.bob += dt * 10;
       this.poseY = Math.abs(Math.sin(this.bob)) * 0.05;
-      const legL = this.mesh.getObjectByName('legL');
-      const legR = this.mesh.getObjectByName('legR');
-      const armL = this.mesh.getObjectByName('armL');
-      const armR = this.mesh.getObjectByName('armR');
-      const swing = Math.sin(this.bob) * 0.45;
-      if (legL) legL.rotation.x = swing;
-      if (legR) legR.rotation.x = -swing;
-      if (armL) armL.rotation.x = -swing;
-      if (armR) armR.rotation.x = swing;
+      if (!this.mesh.userData.isSpriteRunner) {
+        const legL = this.mesh.getObjectByName('legL');
+        const legR = this.mesh.getObjectByName('legR');
+        const armL = this.mesh.getObjectByName('armL');
+        const armR = this.mesh.getObjectByName('armR');
+        const swing = Math.sin(this.bob) * 0.45;
+        if (legL) legL.rotation.x = swing;
+        if (legR) legR.rotation.x = -swing;
+        if (armL) armL.rotation.x = -swing;
+        if (armR) armR.rotation.x = swing;
+      }
     }
 
-    // Slight pitch on ramps/slides for readability
-    if (this.onRamp) this.mesh.rotation.x = -0.12;
-    else if (this.onWaterslide) this.mesh.rotation.x = 0.18;
-    else this.mesh.rotation.x *= 0.85;
+    // Slight pitch on ramps/slides for readability (skip for flat sprites)
+    if (!this.mesh.userData.isSpriteRunner) {
+      if (this.onRamp) this.mesh.rotation.x = -0.12;
+      else if (this.onWaterslide) this.mesh.rotation.x = 0.18;
+      else this.mesh.rotation.x *= 0.85;
+    } else {
+      this.mesh.rotation.x = 0;
+    }
 
     this.y = this.floorY + this.poseY;
-    this.mesh.position.set(this.x, this.y, 0);
+    this.mesh.position.set(this.x, this.floorY + (this.mesh.userData.isSpriteRunner ? 0 : this.poseY), 0);
+    if (this.mesh.userData.isSpriteRunner) {
+      // Bob the sprite plane slightly without moving hitbox feet oddly
+      const sp = this.mesh.getObjectByName('sprite');
+      if (sp) sp.position.y = 2.05 * 0.5 + this.poseY;
+    }
   }
 
   getHitBox(): { x: number; y: number; w: number; h: number; sliding: boolean; jumping: boolean } {

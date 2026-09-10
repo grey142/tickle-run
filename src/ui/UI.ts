@@ -51,7 +51,7 @@ export class UI {
       <div class="title-bg" aria-hidden="true"></div>
       <div class="title-content">
       <h1>Tickle Run</h1>
-      <p class="tag">PG-13 cartoon endless chase · Clothing = lives</p>
+      <p class="tag">NSFW endless chase · Clothing = lives · Down to bikini</p>
       <button class="btn" data-act="start">Start Run</button>
       <button class="btn secondary" data-act="store">Store</button>
       <button class="btn tilt-btn hidden" data-act="enable-tilt" type="button">Enable tilt</button>

@@ -6,88 +6,74 @@ import { TRAPS } from '../catalogs/traps';
 import type { HazardKind, TrapKind } from '../game/types';
 import { getCreature } from '../catalogs/creatures';
 
-export function makeRunner(def: AdventurerDef): THREE.Group {
+export function makeRunner(_def: AdventurerDef): THREE.Group {
   const g = new THREE.Group();
   g.name = 'runner';
 
-  const skinMat = new THREE.MeshStandardMaterial({ color: def.colors.skin, roughness: 0.7 });
-  const hairMat = new THREE.MeshStandardMaterial({ color: def.colors.hair, roughness: 0.85 });
-
-  // Body core
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.75, 0.4), skinMat);
-  torso.position.y = 1.05;
-  torso.name = 'torso';
-  g.add(torso);
-
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 10), skinMat);
-  head.position.y = 1.65;
-  g.add(head);
-
-  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), hairMat);
-  hair.position.y = 1.78;
-  hair.scale.set(1, 0.55, 1);
-  g.add(hair);
-
-  // Shirt
-  const shirt = new THREE.Mesh(
-    new THREE.BoxGeometry(0.74, 0.78, 0.44),
-    new THREE.MeshStandardMaterial({ color: def.colors.shirt, roughness: 0.8 })
-  );
-  shirt.position.y = 1.05;
-  shirt.name = 'shirt';
-  g.add(shirt);
-
-  // Pants
-  const pants = new THREE.Mesh(
-    new THREE.BoxGeometry(0.68, 0.55, 0.4),
-    new THREE.MeshStandardMaterial({ color: def.colors.pants, roughness: 0.85 })
-  );
-  pants.position.y = 0.52;
-  pants.name = 'pants';
-  g.add(pants);
-
-  // Legs
-  const legGeo = new THREE.BoxGeometry(0.22, 0.45, 0.25);
-  const legL = new THREE.Mesh(legGeo, skinMat);
-  legL.position.set(-0.18, 0.22, 0);
-  legL.name = 'legL';
-  const legR = new THREE.Mesh(legGeo, skinMat);
-  legR.position.set(0.18, 0.22, 0);
-  legR.name = 'legR';
-  g.add(legL, legR);
-
-  // Shoes
-  const shoeGeo = new THREE.BoxGeometry(0.26, 0.16, 0.38);
-  const shoeMat = new THREE.MeshStandardMaterial({ color: def.colors.shoes, roughness: 0.7 });
-  const shoeL = new THREE.Mesh(shoeGeo, shoeMat);
-  shoeL.position.set(-0.18, 0.05, 0.05);
-  shoeL.name = 'shoeL';
-  const shoeR = new THREE.Mesh(shoeGeo, shoeMat);
-  shoeR.position.set(0.18, 0.05, 0.05);
-  shoeR.name = 'shoeR';
-  g.add(shoeL, shoeR);
-
-  // Arms
-  const armGeo = new THREE.BoxGeometry(0.18, 0.55, 0.18);
-  const armL = new THREE.Mesh(armGeo, skinMat);
-  armL.position.set(-0.5, 1.05, 0);
-  armL.name = 'armL';
-  const armR = new THREE.Mesh(armGeo, skinMat);
-  armR.position.set(0.5, 1.05, 0);
-  armR.name = 'armR';
-  g.add(armL, armR);
-
-  g.traverse((o) => {
-    if ((o as THREE.Mesh).isMesh) {
-      (o as THREE.Mesh).castShadow = true;
-      (o as THREE.Mesh).receiveShadow = true;
-    }
+  // Tall billboard — textures are cropped full-body sprites (NSFW clothing states)
+  const height = 2.05;
+  const width = height * 0.36;
+  const geo = new THREE.PlaneGeometry(width, height);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    alphaTest: 0.12,
+    depthWrite: false,
+    side: THREE.DoubleSide,
   });
+  const sprite = new THREE.Mesh(geo, mat);
+  sprite.name = 'sprite';
+  sprite.position.y = height * 0.5;
+  // Face the chase camera (behind runner at -Z)
+  sprite.rotation.y = Math.PI;
+  g.add(sprite);
+
+  const textures: Partial<Record<number, THREE.Texture>> = {};
+  g.userData.textures = textures;
+  g.userData.clothingLevel = 3;
+  g.userData.isSpriteRunner = true;
+
+  const base = import.meta.env.BASE_URL || '/';
+  const loader = new THREE.TextureLoader();
+  for (const lvl of [0, 1, 2, 3] as const) {
+    loader.load(
+      `${base}sprites/runner-${lvl}.png`,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 8;
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        textures[lvl] = tex;
+        const want = g.userData.clothingLevel as number;
+        if (lvl === want || (textures[want] == null && lvl === 3)) {
+          mat.map = tex;
+          mat.needsUpdate = true;
+        }
+      },
+      undefined,
+      () => {
+        console.warn('Failed to load runner sprite', lvl);
+      }
+    );
+  }
 
   return g;
 }
 
 export function applyClothingVisibility(root: THREE.Object3D, level: ClothingLevel): void {
+  root.userData.clothingLevel = level;
+  if (root.userData.isSpriteRunner) {
+    const sprite = root.getObjectByName('sprite') as THREE.Mesh | undefined;
+    const textures = root.userData.textures as Partial<Record<number, THREE.Texture>> | undefined;
+    const mat = sprite?.material as THREE.MeshBasicMaterial | undefined;
+    const tex = textures?.[level] ?? textures?.[3];
+    if (mat && tex) {
+      mat.map = tex;
+      mat.needsUpdate = true;
+    }
+    return;
+  }
+  // Legacy mesh fallback
   const shirt = root.getObjectByName('shirt');
   const pants = root.getObjectByName('pants');
   const shoeL = root.getObjectByName('shoeL');
