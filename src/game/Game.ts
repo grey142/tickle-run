@@ -565,7 +565,10 @@ export class Game {
     }
 
     if (this.chase.isCaughtUp()) {
-      // Dual tickle while still clothed: strip to bikini and keep running
+      // Dual tickle: still only −1 life (Tickle Pit is the multi-life exception)
+      const before = this.player.clothing;
+      this.player.loseClothing(1);
+      this.stats.clothingLost += before - this.player.clothing;
       this.playCinematic(
         {
           kind: 'dualTickle',
@@ -574,13 +577,10 @@ export class Game {
           duration: 2.6,
         },
         () => {
-          const lost = this.player.clothing;
-          this.stats.clothingLost += lost;
-          this.player.setClothing(0);
           this.chase.reset();
           this.player.invuln = 2;
           this.playCinematic(
-            { kind: 'escape', clothing: 0, duration: 1.4 },
+            { kind: 'escape', clothing: this.player.clothing, duration: 1.4 },
             () => this.beginCountdownAfterInterrupt()
           );
         }
