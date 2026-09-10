@@ -215,18 +215,8 @@ export function makeTrapMesh(kind: TrapKind): THREE.Group {
   const def = TRAPS[kind];
   const g = new THREE.Group();
   g.name = kind;
-  // Half-block footprint visually
-  const mat = new THREE.MeshStandardMaterial({
-    color: def.color,
-    roughness: 0.5,
-    transparent: true,
-    opacity: 0.85,
-    emissive: def.color,
-    emissiveIntensity: 0.25,
-  });
 
   if (kind === 'blackPit') {
-    // Long black void in the floor — no scale shrink; depth is the danger
     const holeMat = new THREE.MeshStandardMaterial({
       color: 0x020205,
       roughness: 1,
@@ -240,20 +230,15 @@ export function makeTrapMesh(kind: TrapKind): THREE.Group {
       emissive: 0x4a0080,
       emissiveIntensity: 0.2,
     });
-    const hole = new THREE.Mesh(
-      new THREE.BoxGeometry(def.footprint, 0.12, def.depth),
-      holeMat
-    );
+    const hole = new THREE.Mesh(new THREE.BoxGeometry(def.footprint, 0.12, def.depth), holeMat);
     hole.position.y = -0.04;
     g.add(hole);
-    // Inner darker well
     const well = new THREE.Mesh(
       new THREE.BoxGeometry(def.footprint * 0.85, 1.2, def.depth * 0.9),
       holeMat
     );
     well.position.y = -0.65;
     g.add(well);
-    // Rim
     const rim = new THREE.Mesh(
       new THREE.BoxGeometry(def.footprint + 0.15, 0.06, def.depth + 0.15),
       rimMat
@@ -264,30 +249,137 @@ export function makeTrapMesh(kind: TrapKind): THREE.Group {
     g.userData.footprint = def.footprint;
     g.userData.depth = def.depth;
     return g;
-  } else if (kind === 'giggleGas') {
-    for (let i = 0; i < 4; i++) {
-      const puff = new THREE.Mesh(new THREE.SphereGeometry(0.35 + i * 0.05, 8, 8), mat);
-      puff.position.set((i % 2) * 0.4 - 0.2, 0.4 + i * 0.25, (i > 1 ? 0.2 : -0.1));
-      g.add(puff);
-    }
-  } else if (kind === 'featherTrap') {
+  }
+
+  if (kind === 'floorSlime') {
+    const slimeMat = new THREE.MeshStandardMaterial({
+      color: 0x4cc9f0,
+      roughness: 0.25,
+      metalness: 0.05,
+      transparent: true,
+      opacity: 0.92,
+      emissive: 0x0077b6,
+      emissiveIntensity: 0.2,
+    });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.38, 12, 10), slimeMat);
+    body.scale.set(1.15, 0.65, 1.1);
+    body.position.y = 0.22;
+    g.add(body);
+    // Tentacles
     for (let i = 0; i < 6; i++) {
-      const f = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.55, 5), mat);
       const a = (i / 6) * Math.PI * 2;
-      f.position.set(Math.cos(a) * 0.4, 0.4, Math.sin(a) * 0.4);
-      f.rotation.z = Math.cos(a);
-      g.add(f);
+      const tent = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.35, 3, 6), slimeMat);
+      tent.position.set(Math.cos(a) * 0.28, 0.15, Math.sin(a) * 0.28);
+      tent.rotation.z = Math.cos(a) * 0.7;
+      tent.rotation.x = Math.sin(a) * 0.5;
+      g.add(tent);
     }
-  } else {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.85, def.height, 10), mat);
-    m.position.y = def.height / 2;
-    g.add(m);
+    // Eyes
+    const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const pupilMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+    for (const sx of [-0.12, 0.12]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), eyeMat);
+      eye.position.set(sx, 0.32, 0.28);
+      g.add(eye);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.03, 5, 5), pupilMat);
+      pupil.position.set(sx, 0.32, 0.34);
+      g.add(pupil);
+    }
+  } else if (kind === 'handSwarm') {
+    const skin = new THREE.MeshStandardMaterial({ color: 0xffe5d0, roughness: 0.7 });
+    const nail = new THREE.MeshStandardMaterial({ color: 0xe63946, roughness: 0.45 });
+    for (let i = 0; i < 18; i++) {
+      const hand = new THREE.Group();
+      const palm = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.12, 0.08), skin);
+      hand.add(palm);
+      for (let f = 0; f < 4; f++) {
+        const finger = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.12, 0.03), skin);
+        finger.position.set(-0.06 + f * 0.04, 0.11, 0);
+        hand.add(finger);
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.015, 0.05, 4), nail);
+        tip.position.set(-0.06 + f * 0.04, 0.18, 0);
+        tip.rotation.x = Math.PI;
+        hand.add(tip);
+      }
+      const col = i % 3;
+      const row = Math.floor(i / 3);
+      hand.position.set((col - 1) * 0.35 + (row % 2) * 0.08, 0.45 + (row % 5) * 0.28, (row % 3) * 0.25 - 0.25);
+      hand.rotation.set((i % 5) * 0.15, (i % 7) * 0.2, (i % 3) * 0.25);
+      g.add(hand);
+    }
+  } else if (kind === 'vineTrap') {
+    const vineMat = new THREE.MeshStandardMaterial({
+      color: 0x2d6a4f,
+      roughness: 0.85,
+      emissive: 0x1b4332,
+      emissiveIntensity: 0.15,
+    });
+    const tipMat = new THREE.MeshStandardMaterial({ color: 0x95d5b2, roughness: 0.6 });
+    for (let i = 0; i < 10; i++) {
+      const vine = new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.55 + (i % 3) * 0.1, 3, 5), vineMat);
+      const a = (i / 10) * Math.PI * 2;
+      vine.position.set(Math.cos(a) * 0.25, 0.12, Math.sin(a) * 0.2);
+      vine.rotation.z = Math.cos(a) * 0.9;
+      vine.rotation.x = 0.4 + (i % 4) * 0.1;
+      g.add(vine);
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), tipMat);
+      tip.position.set(Math.cos(a) * 0.4, 0.35 + (i % 3) * 0.08, Math.sin(a) * 0.35);
+      g.add(tip);
+    }
+    const mat = new THREE.MeshStandardMaterial({ color: 0x1b4332, roughness: 0.9 });
+    const patch = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.6, 0.08, 10), mat);
+    patch.position.y = 0.02;
+    g.add(patch);
+  } else if (kind === 'shade') {
+    const shadeMat = new THREE.MeshStandardMaterial({
+      color: 0x0a0a10,
+      roughness: 0.95,
+      transparent: true,
+      opacity: 0.88,
+      emissive: 0x3a0ca3,
+      emissiveIntensity: 0.25,
+    });
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.6, 8), shadeMat);
+    body.position.y = 0.95;
+    g.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), shadeMat);
+    head.position.y = 1.75;
+    g.add(head);
+    // Glowing eyes
+    const eyeMat = new THREE.MeshStandardMaterial({
+      color: 0xc77dff,
+      emissive: 0x9b5de5,
+      emissiveIntensity: 1.2,
+    });
+    for (const sx of [-0.1, 0.1]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), eyeMat);
+      eye.position.set(sx, 1.8, 0.22);
+      g.add(eye);
+    }
+    // Tendrils with 3-finger hands
+    const handMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.8 });
+    for (let i = 0; i < 4; i++) {
+      const side = i < 2 ? -1 : 1;
+      const tent = new THREE.Mesh(new THREE.CapsuleGeometry(0.04, 0.7, 3, 6), shadeMat);
+      tent.position.set(side * 0.35, 0.9 + (i % 2) * 0.25, 0.15);
+      tent.rotation.z = side * 0.7;
+      tent.rotation.x = -0.4;
+      g.add(tent);
+      const palm = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), handMat);
+      palm.position.set(side * 0.55, 0.55 + (i % 2) * 0.2, 0.35);
+      g.add(palm);
+      for (let f = 0; f < 3; f++) {
+        const finger = new THREE.Mesh(new THREE.CapsuleGeometry(0.015, 0.08, 2, 4), handMat);
+        finger.position.set(side * 0.55 + (f - 1) * 0.04, 0.48 + (i % 2) * 0.2, 0.42);
+        g.add(finger);
+      }
+    }
   }
 
   g.userData.kind = kind;
   g.userData.footprint = def.footprint;
   g.userData.depth = def.depth;
-  g.scale.setScalar(0.7);
+  if (kind !== 'handSwarm' && kind !== 'shade') g.scale.setScalar(0.85);
   return g;
 }
 

@@ -14,6 +14,8 @@ export interface TrapDef {
   depth: number;
   /** Floor-based trap (jumpable); hit height is reduced 75% */
   ground: boolean;
+  /** Jump and slide never clear — must change lanes */
+  mustAvoid: boolean;
   /** Falling in ends the run immediately */
   instantGameOver: boolean;
   /** How long the cinematic overlay plays (seconds) */
@@ -23,63 +25,73 @@ export interface TrapDef {
 const HALF_BLOCK = 1.1;
 
 export const TRAPS: Record<TrapKind, TrapDef> = {
-  featherTrap: {
-    id: 'featherTrap',
-    name: 'Feather Trap',
-    description: 'A swirl of giant cartoon feathers pops up from the floor.',
-    color: 0xff6b6b,
-    height: 1.2,
+  floorSlime: {
+    id: 'floorSlime',
+    name: 'Floor Slime Tickler',
+    description:
+      'A small blue slime creature that sticks to the player, trips them to the floor, and uses slime tentacles to tickle them all over.',
+    color: 0x4cc9f0,
+    height: 0.55,
     footprint: HALF_BLOCK,
-    depth: 0.7,
+    depth: 0.85,
     ground: true,
+    mustAvoid: false,
     instantGameOver: false,
-    cinematicSeconds: 2.2,
+    cinematicSeconds: 2.3,
   },
-  ticklePit: {
-    id: 'ticklePit',
-    name: 'Tickle Pit',
-    description: 'Soft mossy pit that giggles when you fall in.',
-    color: 0x95d5b2,
-    height: 0.4,
-    footprint: HALF_BLOCK,
-    depth: 0.7,
-    ground: true,
-    instantGameOver: false,
-    cinematicSeconds: 2.4,
-  },
-  giggleGas: {
-    id: 'giggleGas',
-    name: 'Giggle Gas',
-    description: 'Purple puff of silly gas that makes you laugh.',
-    color: 0xc77dff,
-    height: 1.6,
-    footprint: HALF_BLOCK,
-    depth: 0.7,
+  handSwarm: {
+    id: 'handSwarm',
+    name: 'Floating Hands Tickle Swarm',
+    description:
+      'About 25 floating hands — white skin with long red pointy fingernails, no wrists. They fly around; run through the swarm and they grab you, hold you up, and tickle you all over.',
+    color: 0xffe5d0,
+    height: 1.8,
+    footprint: HALF_BLOCK * 1.2,
+    depth: 1.4,
     ground: false,
+    mustAvoid: true, // swarm fills the air — jump/slide won't clear
     instantGameOver: false,
-    cinematicSeconds: 2.0,
+    cinematicSeconds: 2.5,
   },
-  stickyMoss: {
-    id: 'stickyMoss',
-    name: 'Sticky Moss',
-    description: 'Glowing moss that holds you for a tickle ambush.',
-    color: 0x52b788,
-    height: 0.5,
+  vineTrap: {
+    id: 'vineTrap',
+    name: 'Vine Tickle Trap',
+    description:
+      'A mess of thin but strong vines on the ground. Step on them and they tangle, trip, and pin you down, wiggling ticklish vine tips all over.',
+    color: 0x2d6a4f,
+    height: 0.45,
     footprint: HALF_BLOCK,
-    depth: 0.7,
+    depth: 0.9,
     ground: true,
+    mustAvoid: false,
     instantGameOver: false,
-    cinematicSeconds: 2.1,
+    cinematicSeconds: 2.3,
+  },
+  shade: {
+    id: 'shade',
+    name: 'Shade',
+    description:
+      "A black shadow monster. Cannot be jumped over or slid under — must be avoided. Catch you and shadowy tendrils with three-finger hands tickle your whole body.",
+    color: 0x0d0d12,
+    height: 2.0,
+    footprint: HALF_BLOCK * 1.05,
+    depth: 0.9,
+    ground: false,
+    mustAvoid: true,
+    instantGameOver: false,
+    cinematicSeconds: 2.6,
   },
   blackPit: {
     id: 'blackPit',
     name: 'Black Pit',
-    description: 'A long void in the floor — fall through to an endless tickle pit. Instant game over.',
+    description:
+      'A long void in the floor — fall through to an endless tickle pit. Instant game over.',
     color: 0x050508,
-    height: 0.04, // paper-thin ground hitbox
+    height: 0.04,
     footprint: HALF_BLOCK * 1.15,
-    depth: 3.2, // much longer — hard to jump over
+    depth: 3.2,
     ground: true,
+    mustAvoid: false,
     instantGameOver: true,
     cinematicSeconds: 2.8,
   },

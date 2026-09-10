@@ -14,7 +14,10 @@ const LINES: Record<CinematicKind, string[]> = {
   trapTickle: [
     'Caught in a tickle trap!',
     'Giggle overload!',
-    'The feathers found you!',
+    'Slime tentacles everywhere!',
+    'The floating hands got you!',
+    'Vines won\'t let go!',
+    'The Shade has you!',
   ],
   monsterCatch: [
     'The Tickle Monster caught up!',

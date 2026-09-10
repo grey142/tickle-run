@@ -482,12 +482,19 @@ export class Game {
           return;
         }
 
-        // Ground traps: hit height is 25% of visual height (75% reduction) so jumps clear
+        // Shade / hand swarm: must dodge — jump and slide never clear
+        if (tdef.mustAvoid) {
+          e.hit = true;
+          this.onTrapHit(e.subKind as TrapKind);
+          return;
+        }
+
+        // Ground traps (slime, vines): jump clears
         const hitHeight = tdef.ground ? tdef.height * 0.25 : tdef.height;
         const trapTop = (e.floorY ?? 0) + hitHeight;
         const feet = hb.y;
         if (hb.jumping && feet >= trapTop - 0.02) continue;
-        if (tdef.ground && hb.jumping) continue; // jumping clears floor traps
+        if (tdef.ground && hb.jumping) continue;
 
         e.hit = true;
         this.onTrapHit(e.subKind as TrapKind);
