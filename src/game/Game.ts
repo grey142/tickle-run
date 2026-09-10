@@ -72,8 +72,9 @@ export class Game {
     this.mobileLite = isCoarse;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x1a1a2e);
-    this.scene.fog = new THREE.Fog(0x1a1a2e, 14, 48);
+    // Open-top canyon: dark misty sky, purple fog
+    this.scene.background = new THREE.Color(0x120c1c);
+    this.scene.fog = new THREE.Fog(0x1a1028, 12, 42);
 
     this.camera = new THREE.PerspectiveCamera(
       58,
@@ -85,15 +86,19 @@ export class Game {
     this.camera.position.set(0, 2.35, -6.2);
     this.camera.lookAt(0, 1.0, 12);
 
-    const hemi = new THREE.HemisphereLight(0xbde0fe, 0x3d405b, 0.85);
+    const hemi = new THREE.HemisphereLight(0x6a5acd, 0x1a1020, 0.45);
     this.scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffe8d6, 1.1);
-    dir.position.set(-4, 12, -6);
+    const dir = new THREE.DirectionalLight(0x8ecae6, 0.35);
+    dir.position.set(2, 14, -4);
     dir.castShadow = !this.mobileLite;
     this.scene.add(dir);
-    const fill = new THREE.PointLight(0x9b5de5, this.mobileLite ? 0.35 : 0.55, 40);
-    fill.position.set(0, 3, 4);
-    this.scene.add(fill);
+    // Ambient crystal wash
+    const fillP = new THREE.PointLight(0x9b5de5, this.mobileLite ? 0.4 : 0.65, 28);
+    fillP.position.set(-2.5, 2.2, 3);
+    this.scene.add(fillP);
+    const fillB = new THREE.PointLight(0x4cc9f0, this.mobileLite ? 0.35 : 0.55, 28);
+    fillB.position.set(2.5, 2.2, 5);
+    this.scene.add(fillB);
 
     this.input = new Input();
     this.cinematic = new CinematicOverlay(container);

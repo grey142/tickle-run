@@ -93,7 +93,7 @@ html, body, #app {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(ellipse at center, #2b2d42 0%, #0f0e17 70%);
+  background: #120c1c;
   gap: 12px;
   padding:
     max(16px, var(--safe-top))
@@ -103,6 +103,24 @@ html, body, #app {
   overflow: auto;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+}
+#title-screen .title-bg {
+  position: absolute;
+  inset: 0;
+  background-color: #120c1c;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 0;
+  pointer-events: none;
+}
+#title-screen .title-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 }
 #title-screen h1 {
   font-size: clamp(2.2rem, 9vw, 4rem);

@@ -48,6 +48,8 @@ export class UI {
     this.titleEl.id = 'title-screen';
     this.titleEl.dataset.ui = '1';
     this.titleEl.innerHTML = `
+      <div class="title-bg" aria-hidden="true"></div>
+      <div class="title-content">
       <h1>Tickle Run</h1>
       <p class="tag">PG-13 cartoon endless chase · Clothing = lives</p>
       <button class="btn" data-act="start">Start Run</button>
@@ -61,7 +63,14 @@ export class UI {
         Swipe to jump · Tilt to move<br/>
         Swipe ↓ slide · ←→ turn · Drag to strafe if no tilt
       </p>
+      </div>
     `;
+    const titleBg = this.titleEl.querySelector('.title-bg') as HTMLElement | null;
+    if (titleBg) {
+      const base = import.meta.env.BASE_URL || '/';
+      titleBg.style.backgroundImage =
+        `linear-gradient(180deg, #120c1caa 0%, #120c1cdd 55%, #120c1c 100%), url(${base}cave-bg.png)`;
+    }
     this.root.appendChild(this.titleEl);
 
     this.hudEl = document.createElement('div');

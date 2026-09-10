@@ -315,28 +315,28 @@ interface LevelPalette {
 
 const LEVEL_PALETTES: Record<CaveLevelVisual, LevelPalette> = {
   upper: {
-    floor: 0x8d6e63,
-    wall: 0x5c6b7a,
-    ceil: 0x4a5568,
-    accent: 0x81c784,
-    accentEmissive: 0x2e7d32,
-    fogHint: 0xc8e6c9,
+    floor: 0x4a4458,
+    wall: 0x3a3548,
+    ceil: 0x1a1525,
+    accent: 0xc77dff,
+    accentEmissive: 0x9b5de5,
+    fogHint: 0x1a1028,
   },
   middle: {
-    floor: 0x6c584c,
-    wall: 0x3d405b,
-    ceil: 0x2b2d42,
+    floor: 0x3d3a45,
+    wall: 0x2c2838,
+    ceil: 0x12101a,
     accent: 0x9b5de5,
-    accentEmissive: 0x5a2d8a,
-    fogHint: 0x1a1a2e,
+    accentEmissive: 0x7b2cbf,
+    fogHint: 0x140e22,
   },
   lower: {
-    floor: 0x2d3436,
-    wall: 0x1e272e,
-    ceil: 0x0f1419,
-    accent: 0x48cae4,
+    floor: 0x2a2e38,
+    wall: 0x1e2430,
+    ceil: 0x0a0e16,
+    accent: 0x4cc9f0,
     accentEmissive: 0x0077b6,
-    fogHint: 0x0a1628,
+    fogHint: 0x0a1420,
   },
 };
 
@@ -391,112 +391,116 @@ export function makeCaveSegment(
     g.add(slab);
   }
 
-  // Side walls / cave — angled on curves so the turn is readable ahead
+  // Open-top cave: jagged side walls only (no ceiling)
   const wallMat = new THREE.MeshStandardMaterial({
     color: pal.wall,
-    roughness: level === 'lower' ? 0.7 : 0.95,
-    metalness: level === 'lower' ? 0.1 : 0,
+    roughness: 0.92,
+    metalness: 0.05,
   });
-  const wallH = 4.5;
+  const wallBaseY = (floorYStart + floorYEnd) / 2;
   for (const side of [-1, 1] as const) {
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(0.45, wallH, length), wallMat);
-    const baseX = side * (floorW / 2 + 0.2);
-    // Outer wall of a curve bulges; inner wall tucks in
+    const baseX = side * (floorW / 2 + 0.35);
     const bulge = turnSign ? side * turnSign * 0.55 : 0;
-    wall.position.set(baseX + bulge * 0.5, wallH / 2 - 0.2 + (floorYStart + floorYEnd) / 2, 0);
-    if (turnSign) {
-      wall.rotation.y = -turnSign * 0.22 * side * (side === turnSign ? 1.2 : 0.6);
+    // Stack uneven rock columns for a canyon look
+    const cols = Math.max(3, Math.floor(length / 5));
+    for (let i = 0; i < cols; i++) {
+      const h = 3.2 + ((seed * 3 + i * 7 + side + 3) % 5) * 0.55;
+      const w = 0.55 + ((seed + i) % 3) * 0.12;
+      const d = length / cols + 0.08;
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+      const z = -length / 2 + (i + 0.5) * (length / cols);
+      wall.position.set(baseX + bulge * 0.45 + side * ((i % 2) * 0.12), wallBaseY + h / 2 - 0.15, z);
+      if (turnSign) {
+        wall.rotation.y = -turnSign * 0.18 * side;
+      }
+      wall.castShadow = true;
+      wall.receiveShadow = true;
+      g.add(wall);
+      // Extra jutting rock
+      if ((seed + i + side) % 2 === 0) {
+        const jut = new THREE.Mesh(
+          new THREE.BoxGeometry(0.35, 0.5 + (i % 3) * 0.25, 0.45),
+          wallMat
+        );
+        jut.position.set(baseX - side * 0.25, wallBaseY + 1.1 + (i % 4) * 0.4, z);
+        g.add(jut);
+      }
     }
-    g.add(wall);
   }
 
-  // Optional fake junction spur (visual only — never a hard stop)
+  // Optional fake junction spur (visual only)
   if ((seed % 7 === 0) && type === 'straight' && lanes >= 2) {
     const spurSide = seed % 2 === 0 ? -1 : 1;
-    const spurMat = new THREE.MeshStandardMaterial({ color: pal.wall, roughness: 1 });
     const spur = new THREE.Mesh(new THREE.BoxGeometry(floorW * 0.55, 0.22, 4), floorMat);
     spur.position.set(spurSide * (floorW * 0.65), floorYStart - 0.05, length * 0.15);
     spur.rotation.y = spurSide * 0.55;
     g.add(spur);
-    const block = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.2, 3.2), spurMat);
-    block.position.set(spurSide * (floorW * 0.95), floorYStart + 1.0, length * 0.15);
+    const block = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.4, 3.2), wallMat);
+    block.position.set(spurSide * (floorW * 0.95), floorYStart + 1.1, length * 0.15);
     g.add(block);
   }
 
-  // Ceiling
-  const ceilMat = new THREE.MeshStandardMaterial({ color: pal.ceil, roughness: 1 });
-  const ceil = new THREE.Mesh(new THREE.BoxGeometry(floorW + 1.4, 0.3, length), ceilMat);
-  ceil.position.y = wallH - 0.1 + (floorYStart + floorYEnd) / 2;
-  g.add(ceil);
-
-  // Level-specific props
-  const accentMat = new THREE.MeshStandardMaterial({
-    color: pal.accent,
-    emissive: pal.accentEmissive,
-    emissiveIntensity: level === 'upper' ? 0.25 : level === 'lower' ? 0.45 : 0.35,
+  // Purple (left) + blue (right) crystal lights on stone
+  const purpleMat = new THREE.MeshStandardMaterial({
+    color: 0xc77dff,
+    emissive: 0x9b5de5,
+    emissiveIntensity: 0.95,
+    roughness: 0.25,
+    metalness: 0.15,
   });
-
-  if (level === 'upper') {
-    // Brighter roots hanging from ceiling
-    const rootMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.85 });
-    for (let i = 0; i < 4; i++) {
-      const root = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.08, 1.2 + (seed + i) % 3 * 0.3, 5), rootMat);
-      const side = i % 2 === 0 ? -1 : 1;
-      root.position.set(
-        side * (floorW / 2 - 0.35),
-        wallH - 0.9 + floorYStart,
-        -length / 2 + 2 + i * (length / 5)
-      );
-      root.rotation.z = side * 0.25;
-      g.add(root);
-      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 6), accentMat);
-      leaf.position.copy(root.position);
-      leaf.position.y -= 0.55;
-      g.add(leaf);
-    }
-  } else if (level === 'lower') {
-    // Wet puddles + drips
-    const wetMat = new THREE.MeshStandardMaterial({
-      color: 0x14746f,
-      roughness: 0.15,
-      metalness: 0.4,
-      transparent: true,
-      opacity: 0.7,
-    });
-    for (let i = 0; i < 3; i++) {
-      const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.35 + (seed + i) % 3 * 0.1, 10), wetMat);
-      puddle.rotation.x = -Math.PI / 2;
-      puddle.position.set(
-        ((i % 3) - 1) * 0.7,
-        Math.min(floorYStart, floorYEnd) + 0.02,
-        -length / 2 + 3 + i * (length / 4)
-      );
-      g.add(puddle);
-    }
-    for (let i = 0; i < 3; i++) {
-      const drip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.35, 5), accentMat);
-      drip.position.set(
-        (i % 2 === 0 ? -1 : 1) * (floorW / 2 - 0.4),
-        wallH - 1.2 + floorYStart,
-        -length / 2 + 4 + i * (length / 4)
-      );
-      g.add(drip);
-    }
-  } else {
-    // Middle: crystals / moss
-    for (let i = 0; i < 3; i++) {
-      const c = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.45, 5), accentMat);
-      const side = i % 2 === 0 ? -1 : 1;
-      c.position.set(
-        side * (floorW / 2 - 0.3),
-        floorYStart + 0.3 + ((seed + i) % 3) * 0.4,
-        -length / 2 + 2 + i * (length / 4)
-      );
-      g.add(c);
+  const blueMat = new THREE.MeshStandardMaterial({
+    color: 0x4cc9f0,
+    emissive: 0x00b4d8,
+    emissiveIntensity: 0.95,
+    roughness: 0.25,
+    metalness: 0.15,
+  });
+  const crystalCount = Math.max(2, Math.floor(length / 9));
+  for (let i = 0; i < crystalCount; i++) {
+    const z = -length / 2 + 2.5 + i * (length / (crystalCount + 0.5));
+    const y = wallBaseY + 0.35 + ((seed + i) % 4) * 0.35;
+    for (const side of [-1, 1] as const) {
+      const matC = side < 0 ? purpleMat : blueMat;
+      const cluster = new THREE.Group();
+      for (let k = 0; k < 3; k++) {
+        const crystal = new THREE.Mesh(
+          new THREE.ConeGeometry(0.1 + k * 0.03, 0.45 + k * 0.18, 5),
+          matC
+        );
+        crystal.position.set(k * 0.08 * side, k * 0.12, k * 0.05);
+        crystal.rotation.z = side * (0.2 + k * 0.15);
+        crystal.rotation.x = -0.2 + k * 0.1;
+        cluster.add(crystal);
+      }
+      cluster.position.set(side * (floorW / 2 - 0.15), y, z);
+      g.add(cluster);
+      // Soft colored point light soaking the stone
+      const light = new THREE.PointLight(side < 0 ? 0xb388ff : 0x4cc9f0, 0.55, 8, 2);
+      light.position.set(side * (floorW / 2 - 0.4), y + 0.3, z);
+      g.add(light);
     }
   }
 
-  if (isRamp) {
+  // Wet floor patches catching crystal glow
+  const wetMat = new THREE.MeshStandardMaterial({
+    color: 0x2a2438,
+    roughness: 0.2,
+    metalness: 0.35,
+    transparent: true,
+    opacity: 0.55,
+  });
+  for (let i = 0; i < 2; i++) {
+    const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.4 + (seed + i) % 3 * 0.12, 10), wetMat);
+    puddle.rotation.x = -Math.PI / 2;
+    puddle.position.set(
+      ((i % 2) * 2 - 1) * 0.55,
+      Math.min(floorYStart, floorYEnd) + 0.03,
+      -length / 2 + 3 + i * (length / 3)
+    );
+    g.add(puddle);
+  }
+
+    if (isRamp) {
     // Ramp side rails
     const railMat = new THREE.MeshStandardMaterial({ color: 0xa1887f, roughness: 0.7 });
     for (const sx of [-floorW / 2 + 0.12, floorW / 2 - 0.12]) {
