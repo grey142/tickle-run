@@ -210,20 +210,28 @@ html, body, #app {
 }
 .pip.on { opacity: 1; box-shadow: 0 0 8px #ffd16688; }
 .chase-banner {
-  align-self: center;
+  position: absolute;
+  top: max(8px, var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
   background: #7b2cbfcc;
-  padding: 6px 16px;
+  padding: 6px 14px;
   border-radius: 999px;
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   animation: pulse 1s ease-in-out infinite;
-  margin-top: 6px;
   text-align: center;
-  max-width: 92%;
+  max-width: min(92%, 22rem);
+  pointer-events: none;
+  line-height: 1.2;
+}
+.chase-banner:not(.hidden) {
+  /* keep translate for centering while pulsing via scale on inner feel */
 }
 @keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.04); }
 }
 #hud .bottom {
   display: flex;
@@ -364,9 +372,9 @@ html, body, #app {
 #cinematic {
   position: absolute;
   inset: 0;
-  background: #0a0618ee;
+  background: #0a061866;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   z-index: 20;
   pointer-events: auto;

@@ -212,6 +212,7 @@ export function makeTrapMesh(kind: TrapKind): THREE.Group {
   const def = TRAPS[kind];
   const g = new THREE.Group();
   g.name = kind;
+  // Half-block footprint visually
   const mat = new THREE.MeshStandardMaterial({
     color: def.color,
     roughness: 0.5,
@@ -242,6 +243,8 @@ export function makeTrapMesh(kind: TrapKind): THREE.Group {
   }
 
   g.userData.kind = kind;
+  g.userData.footprint = def.footprint;
+  g.scale.setScalar(0.7);
   return g;
 }
 
@@ -511,7 +514,7 @@ export function makeCaveSegment(
     }
     // Splash streaks
     const splash = new THREE.Mesh(
-      new THREE.BoxGeometry(floorW * 0.7, 0.05, length * 0.9),
+      new THREE.BoxGeometry(floorW * 0.98, 0.06, length * 0.98),
       new THREE.MeshStandardMaterial({
         color: 0x90e0ef,
         transparent: true,

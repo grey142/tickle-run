@@ -20,6 +20,7 @@ import { CinematicOverlay } from '../cinematics/CinematicOverlay';
 import { UI } from '../ui/UI';
 import { getAdventurer } from '../catalogs/adventurers';
 import { OBSTACLES } from '../catalogs/obstacles';
+import { TRAPS } from '../catalogs/traps';
 
 type PendingResume = 'none' | 'countdown';
 
@@ -406,9 +407,9 @@ export class Game {
 
     for (const e of near) {
       const dx = Math.abs(e.mesh.position.x - hb.x);
-      if (dx > 1.05) continue;
 
       if (e.kind === 'pickup') {
+        if (dx > 1.05) continue;
         e.hit = true;
         this.collectPickup(e.subKind);
         continue;
@@ -419,6 +420,8 @@ export class Game {
       if (e.kind === 'obstacle') {
         const def = OBSTACLES[e.subKind as keyof typeof OBSTACLES];
         if (!def) continue;
+        const hitR = def.width / 2 + 0.2;
+        if (dx > hitR) continue;
         const clear = def.clearance ?? 0;
         const top = clear + def.height;
         const feet = hb.y;
@@ -449,6 +452,9 @@ export class Game {
       }
 
       if (e.kind === 'trap') {
+        const tdef = TRAPS[e.subKind as TrapKind];
+        const hitR = ((tdef?.footprint ?? 1.1) / 2) + 0.2;
+        if (dx > hitR) continue;
         e.hit = true;
         this.onTrapHit(e.subKind as TrapKind);
         return;

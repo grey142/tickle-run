@@ -74,7 +74,6 @@ export class UI {
         <div class="stat">🪶 <strong id="hud-gems">0</strong></div>
         <div class="clothes-pips" id="hud-clothes" title="Clothing lives"></div>
       </div>
-      <div class="chase-banner hidden" id="hud-chase">TICKLE MONSTER CAUGHT UP! <span id="hud-chase-t"></span></div>
       <div class="bottom">
         <div class="equip-bar" data-ui="1">
           <button class="equip-btn" data-ui="1" data-eq="shield" title="Shield" type="button">🛡️<span class="cd" id="cd-shield"></span></button>
@@ -84,6 +83,11 @@ export class UI {
         <button class="btn secondary pause-btn" data-ui="1" data-act="pause" type="button">Pause</button>
       </div>
     `;
+    const chaseBanner = document.createElement('div');
+    chaseBanner.className = 'chase-banner hidden';
+    chaseBanner.id = 'hud-chase';
+    chaseBanner.innerHTML = 'TICKLE MONSTER CAUGHT UP! <span id="hud-chase-t"></span>';
+    this.hudEl.appendChild(chaseBanner);
     this.root.appendChild(this.hudEl);
 
     this.swipeHintsEl = document.createElement('div');

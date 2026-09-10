@@ -2,6 +2,9 @@
 
 import type { HazardKind } from '../game/types';
 
+/** One track block ≈ LANE_WIDTH (2.2). Hazards occupy only the first half. */
+const HALF_BLOCK = 1.1;
+
 export interface ObstacleDef {
   id: HazardKind;
   name: string;
@@ -26,9 +29,9 @@ export const OBSTACLES: Record<HazardKind, ObstacleDef> = {
     color: 0x8b5a2b,
     avoid: 'jump',
     onSlide: false,
-    width: 1.8,
+    width: HALF_BLOCK,
     height: 0.5,
-    depth: 0.55,
+    depth: 0.35,
     clearance: 0,
   },
   vines: {
@@ -38,33 +41,33 @@ export const OBSTACLES: Record<HazardKind, ObstacleDef> = {
     color: 0x2d6a4f,
     avoid: 'jump',
     onSlide: false,
-    width: 1.6,
+    width: HALF_BLOCK * 0.9,
     height: 0.5,
-    depth: 0.45,
+    depth: 0.3,
     clearance: 0,
   },
   laneWall: {
     id: 'laneWall',
     name: 'Lane Wall',
-    description: 'Blocks one lane — strafe around.',
+    description: 'Blocks half a lane — strafe around.',
     color: 0x6c757d,
     avoid: 'strafe',
     onSlide: false,
-    width: 2.0,
+    width: HALF_BLOCK,
     height: 1.6,
-    depth: 0.5,
+    depth: 0.35,
     clearance: 0,
   },
   tree: {
     id: 'tree',
     name: 'Cave Tree',
-    description: 'Sturdy trunk blocking a lane.',
+    description: 'Sturdy trunk blocking half a lane.',
     color: 0x52796f,
     avoid: 'strafe',
     onSlide: false,
-    width: 1.0,
+    width: HALF_BLOCK * 0.7,
     height: 1.8,
-    depth: 0.9,
+    depth: 0.45,
     clearance: 0,
   },
   slideRock: {
@@ -74,21 +77,21 @@ export const OBSTACLES: Record<HazardKind, ObstacleDef> = {
     color: 0xadb5bd,
     avoid: 'strafe',
     onSlide: true,
-    width: 1.2,
+    width: HALF_BLOCK * 0.8,
     height: 0.5,
-    depth: 0.7,
+    depth: 0.35,
     clearance: 0,
   },
   slideBranch: {
     id: 'slideBranch',
     name: 'Slide Branch',
-    description: 'Branch across the slide — slide under.',
+    description: 'Branch across the full slide — slide under.',
     color: 0x774936,
     avoid: 'slide',
     onSlide: true,
-    width: 2.0,
+    width: 6.2, // full 3-lane track
     height: 0.45,
-    depth: 0.4,
+    depth: 0.35,
     clearance: 0.85,
   },
 };

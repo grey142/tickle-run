@@ -148,7 +148,7 @@ export class TrackGenerator {
   private lanesFor(type: SegmentType): LaneCount {
     if (type === 'narrow1') return 1;
     if (type === 'narrow2') return 2;
-    if (type === 'waterslide') return this.rng() < 0.35 ? 2 : 3;
+    if (type === 'waterslide') return 3; // full track width
     return 3;
   }
 
