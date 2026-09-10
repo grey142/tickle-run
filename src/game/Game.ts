@@ -48,6 +48,7 @@ export class Game {
   private runEscapeCollected = false;
   private revivedThisRun = false;
   private paidOut = false;
+  private pendingPayout = 0;
   private frozen = false;
   private anim = 0;
   private fromStoreTo: GameScreen = 'title';
@@ -88,8 +89,8 @@ export class Game {
     this.ui = new UI(container, this.economy, {
       onStart: () => this.startRun(),
       onResume: () => this.resumeFromPause(),
-      onRestart: () => this.startRun(),
-      onQuitTitle: () => this.toTitle(),
+      onRestart: () => { this.settlePayout(); this.startRun(); },
+      onQuitTitle: () => { this.settlePayout(); this.toTitle(); },
       onOpenStore: () => this.openStore(),
       onCloseStore: () => this.closeStore(),
       onBuyEquip: (k) => {
@@ -171,6 +172,7 @@ export class Game {
     this.runEscapeCollected = false;
     this.revivedThisRun = false;
     this.paidOut = false;
+    this.pendingPayout = 0;
     this.frozen = false;
     this.pendingResume = 'countdown';
     this.countdown = COUNTDOWN_DURATION;
@@ -545,15 +547,10 @@ export class Game {
     this.playCinematic(
       { kind: 'gameOver', clothing: this.player.clothing, duration: 2.0 },
       () => {
-        if (!this.paidOut) {
-          this.economy.addGems(payout);
-          this.economy.recordRun(points, this.distance);
-          this.economy.data.equipment = this.equip.state;
-          this.economy.persist();
-          this.paidOut = true;
-        }
-
         this.screen = 'gameover';
+        this.pendingPayout = payout;
+        this.economy.data.equipment = this.equip.state;
+        this.economy.persist();
         const canRevive =
           !this.revivedThisRun && (this.economy.data.hasEscapeGem || this.runEscapeCollected);
         this.ui.showGameOver(this.stats, payout, canRevive, {
@@ -565,6 +562,19 @@ export class Game {
     );
   }
 
+
+  private settlePayout(): void {
+    if (this.paidOut) return;
+    const points = this.score;
+    const payout = this.pendingPayout || gemsFromScore(points, this.runGems);
+    this.economy.addGems(payout);
+    this.economy.recordRun(points, this.distance);
+    this.economy.data.equipment = this.equip.state;
+    this.economy.persist();
+    this.paidOut = true;
+    this.pendingPayout = 0;
+  }
+
   private tryRevive(): void {
     if (this.revivedThisRun) return;
     const had =
@@ -574,6 +584,8 @@ export class Game {
     this.runEscapeCollected = false;
 
     this.revivedThisRun = true;
+    this.pendingPayout = 0;
+    this.paidOut = false;
     this.ui.hideGameOver();
     this.player.setClothing(1);
     this.chase.reset();
