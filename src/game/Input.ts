@@ -19,8 +19,8 @@ export class Input {
   private tiltAxis: 'gamma' | 'beta' = 'gamma';
   tiltPermission: TiltPermissionState = 'unknown';
 
-  private static readonly TILT_DEADZONE = 0.1;
-  private static readonly TILT_SCALE = 28; // degrees → full axis (gentler)
+  private static readonly TILT_DEADZONE = 0.08;
+  private static readonly TILT_SCALE = 45; // degrees each way → full track
   private tiltSmooth = 0;
 
   constructor(target: HTMLElement | Window = window) {
@@ -118,7 +118,7 @@ export class Input {
     }
     v = Math.max(-1, Math.min(1, v));
     // Low-pass so the axis tracks phone motion instead of jumping
-    this.tiltSmooth += (v - this.tiltSmooth) * 0.12;
+    this.tiltSmooth += (v - this.tiltSmooth) * 0.08;
     if (Math.abs(this.tiltSmooth) < 0.02) this.tiltSmooth = 0;
     return this.tiltSmooth;
   }

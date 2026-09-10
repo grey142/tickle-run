@@ -155,7 +155,7 @@ export class Player {
     desired = Math.max(-maxX, Math.min(maxX, desired));
     // Tilt follows the phone gradually (~full track in ~1.3s). Lane settle is a bit quicker.
     const tilting = Math.abs(axis) > 0.06;
-    const maxSpeed = tilting ? 3.2 : 7.5; // world units / sec
+    const maxSpeed = tilting ? 1.05 : 7.5; // tilt ~3× slower; lane settle unchanged
     const delta = desired - this.x;
     const step = Math.sign(delta) * Math.min(Math.abs(delta), maxSpeed * dt);
     this.x += step;
