@@ -10,6 +10,8 @@ export interface TrapDef {
   height: number;
   /** Lateral footprint — half a track block */
   footprint: number;
+  /** Floor-based trap (jumpable); hit height is reduced 75% */
+  ground: boolean;
   /** How long the cinematic overlay plays (seconds) */
   cinematicSeconds: number;
 }
@@ -24,6 +26,7 @@ export const TRAPS: Record<TrapKind, TrapDef> = {
     color: 0xff6b6b,
     height: 1.2,
     footprint: HALF_BLOCK,
+    ground: true,
     cinematicSeconds: 2.2,
   },
   ticklePit: {
@@ -33,6 +36,7 @@ export const TRAPS: Record<TrapKind, TrapDef> = {
     color: 0x95d5b2,
     height: 0.4,
     footprint: HALF_BLOCK,
+    ground: true,
     cinematicSeconds: 2.4,
   },
   giggleGas: {
@@ -42,6 +46,7 @@ export const TRAPS: Record<TrapKind, TrapDef> = {
     color: 0xc77dff,
     height: 1.6,
     footprint: HALF_BLOCK,
+    ground: false,
     cinematicSeconds: 2.0,
   },
   stickyMoss: {
@@ -51,6 +56,7 @@ export const TRAPS: Record<TrapKind, TrapDef> = {
     color: 0x52b788,
     height: 0.5,
     footprint: HALF_BLOCK,
+    ground: true,
     cinematicSeconds: 2.1,
   },
 };
