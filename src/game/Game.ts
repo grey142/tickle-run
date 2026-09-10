@@ -385,7 +385,7 @@ export class Game {
 
   private resolveCollisions(): void {
     if (this.player.isInvulnerable()) return;
-    const near = this.track.getEntitiesNear(-0.6, 1.4);
+    const near = this.track.getEntitiesNear(-1.2, 3.5); // wider window at high speed
     const hb = this.player.getHitBox();
     const boost = this.equip.isBoostActive();
 

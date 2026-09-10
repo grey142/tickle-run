@@ -141,9 +141,20 @@ export class Player {
       this.slideT = 0; // hold crouch while on slide
     }
 
-    const fine = strafeAxis * 0.35;
-    const desired = this.targetLaneX + fine;
-    this.x += (desired - this.x) * Math.min(1, dt * 12);
+    // Tilt/drag is a full-track slider across available lanes.
+    // Hard-clamp inset from the walls so tilt alone never wall-bumps or falls off.
+    const half = ((this.lanesAvailable - 1) / 2) * LANE_WIDTH;
+    const maxX = Math.max(0.05, half - 0.18);
+    const axis = Math.max(-1, Math.min(1, strafeAxis));
+    let desired: number;
+    if (Math.abs(axis) > 0.06) {
+      desired = axis * maxX;
+    } else {
+      desired = this.targetLaneX;
+    }
+    desired = Math.max(-maxX, Math.min(maxX, desired));
+    this.x += (desired - this.x) * Math.min(1, dt * 16);
+    this.x = Math.max(-maxX, Math.min(maxX, this.x));
 
     if (this.jumping) {
       this.jumpT += dt;
