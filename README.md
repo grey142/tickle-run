@@ -5,6 +5,13 @@ PG-13 cartoon **3D endless runner** — flee the Tickle Monster through a cave t
 
 ## Play
 
+**Live (phone-friendly):** https://grey142.github.io/tickle-run/
+
+Open that link on your phone (portrait), tap **Enable tilt**, then **Start Run**.  
+Add to Home Screen for an app-like shell.
+
+### Local
+
 ```bash
 npm install
 npm run dev
