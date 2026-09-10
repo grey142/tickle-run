@@ -391,9 +391,13 @@ export class Game {
 
   private resolveCollisions(): void {
     if (this.player.isInvulnerable()) return;
-    const near = this.track.getEntitiesNear(-1.2, 3.5); // wider window at high speed
+    // Broad phase only — real hits require AABB overlap with the sprite below
+    const near = this.track.getEntitiesNear(-1.5, 2.5);
     const hb = this.player.getHitBox();
     const boost = this.equip.isBoostActive();
+    // Player body extents (must actually touch the sprite)
+    const pHalfX = hb.w * 0.5;
+    const pHalfZ = 0.28;
 
     // Magnet pull
     if (this.equip.isMagnetActive() || this.economy.data.selectedAdventurer === 'miner') {
@@ -412,9 +416,12 @@ export class Game {
 
     for (const e of near) {
       const dx = Math.abs(e.mesh.position.x - hb.x);
+      const dz = Math.abs(e.z);
 
       if (e.kind === 'pickup') {
-        if (dx > 1.05) continue;
+        const halfX = 0.28;
+        const halfZ = 0.28;
+        if (dx > pHalfX + halfX || dz > pHalfZ + halfZ) continue;
         e.hit = true;
         this.collectPickup(e.subKind);
         continue;
@@ -425,21 +432,22 @@ export class Game {
       if (e.kind === 'obstacle') {
         const def = OBSTACLES[e.subKind as keyof typeof OBSTACLES];
         if (!def) continue;
-        const hitR = def.width / 2 + 0.2;
-        if (dx > hitR) continue;
+        const halfX = def.width * 0.5;
+        const halfZ = Math.max(0.18, def.depth * 0.5);
+        // Must overlap the obstacle sprite in both X and Z
+        if (dx > pHalfX + halfX || dz > pHalfZ + halfZ) continue;
+
         const clear = def.clearance ?? 0;
         const top = clear + def.height;
         const feet = hb.y;
         const head = hb.y + hb.h;
         let avoided = false;
 
-        // Every obstacle is jump-over or slide-under
         if (def.avoid === 'jump') {
           if (hb.jumping) avoided = true;
         } else if (def.avoid === 'slide') {
           if (hb.sliding) avoided = true;
         }
-        // Height fallbacks (in case action + geometry disagree)
         if (!avoided && hb.jumping && clear < 0.35 && top <= 0.65) avoided = true;
         if (!avoided && hb.sliding && clear >= 0.7 && head <= clear + 0.25) avoided = true;
         if (avoided) continue;
@@ -451,8 +459,9 @@ export class Game {
 
       if (e.kind === 'trap') {
         const tdef = TRAPS[e.subKind as TrapKind];
-        const hitR = ((tdef?.footprint ?? 1.1) / 2) + 0.2;
-        if (dx > hitR) continue;
+        const halfX = (tdef?.footprint ?? 1.1) * 0.5;
+        const halfZ = 0.35; // trap sprite depth
+        if (dx > pHalfX + halfX || dz > pHalfZ + halfZ) continue;
         e.hit = true;
         this.onTrapHit(e.subKind as TrapKind);
         return;
