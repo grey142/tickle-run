@@ -46,6 +46,8 @@ export class Game {
   private stats: RunStats = this.emptyStats();
   private pendingResume: PendingResume = 'none';
   private countdown = 0;
+  /** Trap that caused the current game-over (for GO still) */
+  private lastFatalTrap: TrapKind | null = null;
   private runEscapeCollected = false;
   private revivedThisRun = false;
   private paidOut = false;
@@ -202,6 +204,7 @@ export class Game {
     this.ui.showPlaying();
     this.ui.showCountdown(this.countdown);
     this.player.setClothing(3);
+    this.lastFatalTrap = null;
     this.input.calibrateTilt();
     this.ui.beginSwipeHints();
   }
@@ -580,9 +583,23 @@ export class Game {
     this.chase.forceCatchUp();
 
     if (this.player.clothing <= 0) {
+      this.lastFatalTrap = trapKind;
+      // Final strip tickle, then trap game-over still (bikini bottoms)
       this.playCinematic(
         { kind: 'trapTickle', clothing: 0, trapKind, duration: 2.2 },
-        () => this.endRun(false)
+        () => {
+          this.playCinematic(
+            {
+              kind: 'gameOver',
+              clothing: 0,
+              trapKind,
+              trapGameOver: true,
+              message: `${TRAPS[trapKind]?.name ?? 'Trap'} wins — tickled out!`,
+              duration: 2.8,
+            },
+            () => this.endRun(false, true)
+          );
+        }
       );
       return;
     }
@@ -631,7 +648,10 @@ export class Game {
         message: 'You fell into the Tickle Pit — every trap at once!',
         duration: 2.8,
       },
-      () => this.endRun(false)
+      () => {
+      this.lastFatalTrap = null;
+      this.endRun(false);
+    }
     );
   }
 
@@ -656,27 +676,40 @@ export class Game {
     });
   }
 
-  private endRun(_fromCatch: boolean): void {
+  private endRun(_fromCatch: boolean, skipGoCinematic = false): void {
     this.screen = 'cinematic';
     const points = this.score;
     const fromScore = Math.floor(points * 0.006);
     const payout = gemsFromScore(points, this.runGems);
 
+    const finish = () => {
+      this.screen = 'gameover';
+      this.pendingPayout = payout;
+      this.economy.data.equipment = this.equip.state;
+      this.economy.persist();
+      const canRevive =
+        !this.revivedThisRun && (this.economy.data.hasEscapeGem || this.runEscapeCollected);
+      this.ui.showGameOver(this.stats, payout, canRevive, {
+        points,
+        fromScore,
+        collected: this.runGems,
+      });
+    };
+
+    if (skipGoCinematic) {
+      finish();
+      return;
+    }
+
     this.playCinematic(
-      { kind: 'gameOver', clothing: this.player.clothing, duration: 2.0 },
-      () => {
-        this.screen = 'gameover';
-        this.pendingPayout = payout;
-        this.economy.data.equipment = this.equip.state;
-        this.economy.persist();
-        const canRevive =
-          !this.revivedThisRun && (this.economy.data.hasEscapeGem || this.runEscapeCollected);
-        this.ui.showGameOver(this.stats, payout, canRevive, {
-          points,
-          fromScore,
-          collected: this.runGems,
-        });
-      }
+      {
+        kind: 'gameOver',
+        clothing: this.player.clothing,
+        trapKind: this.lastFatalTrap ?? undefined,
+        trapGameOver: !!this.lastFatalTrap,
+        duration: 2.0,
+      },
+      finish
     );
   }
 

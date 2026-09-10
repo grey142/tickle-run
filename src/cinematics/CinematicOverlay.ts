@@ -6,6 +6,8 @@ export interface CinematicRequest {
   kind: CinematicKind;
   clothing: ClothingLevel;
   trapKind?: TrapKind;
+  /** Use trap game-over still (bikini bottoms) instead of clothing-tier still */
+  trapGameOver?: boolean;
   message?: string;
   duration?: number;
 }
@@ -29,11 +31,26 @@ const LINES: Record<CinematicKind, string[]> = {
     'Dual giggle assault!',
     'Worst (best?) luck ever!',
   ],
-  fallOff: ['You slipped off the narrow ledge!', 'Into the Tickle Pit!', 'Every trap at once!', 'Held spread eagle — no escape!'],
+  fallOff: [
+    'You slipped off the narrow ledge!',
+    'Into the Tickle Pit!',
+    'Every trap at once!',
+    'Held spread eagle — no escape!',
+  ],
   gameOver: ['Tickled out!', 'Too many giggles…', 'Adventure over — for now!'],
   escape: ['You wriggle free!', 'Escape!', 'Keep running!'],
   revive: ['Escape Gem activates!', 'Second wind!', 'Back on your feet!'],
 };
+
+const CLOTHING_LABELS = [
+  'Bikini',
+  'Lingerie + boots',
+  'No jacket',
+  'Fully clothed',
+];
+
+/** Traps that have cinematic still packs under public/cinematics/<id>/ */
+const CIN_TRAPS: TrapKind[] = ['floorSlime', 'handSwarm', 'vineTrap', 'shade'];
 
 export class CinematicOverlay {
   el: HTMLDivElement;
@@ -48,12 +65,16 @@ export class CinematicOverlay {
     this.el.innerHTML = `
       <div class="cin-panel">
         <div class="cin-stage">
+          <img class="cin-art" id="cin-art" alt="" hidden />
           <div class="cin-avatar" id="cin-avatar"></div>
           <div class="cin-fx" id="cin-fx"></div>
           <div class="cin-monster" id="cin-monster" hidden>👾</div>
         </div>
-        <div class="cin-text" id="cin-text"></div>
-        <div class="cin-clothes" id="cin-clothes"></div>
+        <div class="cin-caption">
+          <div class="cin-trap-name" id="cin-trap-name" hidden></div>
+          <div class="cin-text" id="cin-text"></div>
+          <div class="cin-clothes" id="cin-clothes"></div>
+        </div>
         <button class="btn secondary cin-skip" data-ui="1" type="button" id="cin-skip">Skip</button>
       </div>
     `;
@@ -84,31 +105,75 @@ export class CinematicOverlay {
     if (req.trapKind && TRAPS[req.trapKind]) {
       this.timer = Math.max(this.timer, TRAPS[req.trapKind].cinematicSeconds);
     }
+    if (req.trapGameOver || req.kind === 'gameOver') {
+      this.timer = Math.max(this.timer, 2.8);
+    }
     this.el.classList.remove('hidden');
+
     const lines = LINES[req.kind];
     const text = req.message ?? lines[Math.floor(Math.random() * lines.length)];
-    const textEl = this.el.querySelector('#cin-text')!;
-    textEl.textContent = text;
+    this.el.querySelector('#cin-text')!.textContent = text;
 
     const clothes = this.el.querySelector('#cin-clothes')!;
-    const labels = ['None', 'Shoes', 'Pants + Shoes', 'Fully Clothed'];
-    clothes.textContent = `Clothing: ${labels[req.clothing]} (${req.clothing}/3)`;
+    if (req.trapGameOver || (req.kind === 'gameOver' && req.trapKind)) {
+      clothes.textContent = 'Clothing: Bikini bottoms only';
+    } else {
+      clothes.textContent = `Clothing: ${CLOTHING_LABELS[req.clothing] ?? req.clothing} (${req.clothing}/3)`;
+    }
 
+    const trapName = this.el.querySelector('#cin-trap-name') as HTMLElement;
+    if (req.trapKind && TRAPS[req.trapKind]) {
+      trapName.hidden = false;
+      trapName.textContent = TRAPS[req.trapKind].name;
+    } else {
+      trapName.hidden = true;
+    }
+
+    const art = this.el.querySelector('#cin-art') as HTMLImageElement;
     const avatar = this.el.querySelector('#cin-avatar') as HTMLElement;
-    avatar.innerHTML = this.avatarSvg(req.clothing);
-    avatar.classList.remove('shake');
-    void avatar.offsetWidth;
-    avatar.classList.add('shake');
+    const artUrl = this.resolveArtUrl(req);
+    if (artUrl) {
+      art.hidden = false;
+      art.src = artUrl;
+      avatar.hidden = true;
+      avatar.innerHTML = '';
+      this.el.classList.add('has-art');
+    } else {
+      art.hidden = true;
+      art.removeAttribute('src');
+      avatar.hidden = false;
+      avatar.innerHTML = this.avatarSvg(req.clothing);
+      avatar.classList.remove('shake');
+      void avatar.offsetWidth;
+      avatar.classList.add('shake');
+      this.el.classList.remove('has-art');
+    }
 
     const monster = this.el.querySelector('#cin-monster') as HTMLElement;
     monster.hidden = !(
-      req.kind === 'monsterCatch' ||
-      req.kind === 'dualTickle' ||
-      req.kind === 'gameOver'
+      !artUrl &&
+      (req.kind === 'monsterCatch' || req.kind === 'dualTickle' || req.kind === 'gameOver')
     );
 
     const fx = this.el.querySelector('#cin-fx') as HTMLElement;
-    fx.textContent = '🪶😂✨🪶😂';
+    fx.textContent = artUrl ? '' : '🪶😂✨🪶😂';
+  }
+
+  private resolveArtUrl(req: CinematicRequest): string | null {
+    const trap = req.trapKind;
+    if (!trap || !CIN_TRAPS.includes(trap)) return null;
+    const base = import.meta.env.BASE_URL || '/';
+    const folder = `${base}cinematics/${trap}/`;
+
+    if (req.trapGameOver || (req.kind === 'gameOver' && trap)) {
+      return `${folder}go.jpg`;
+    }
+    if (req.kind === 'trapTickle' || req.kind === 'dualTickle') {
+      // Never show fully clothed — traps strip first; clamp 3→2
+      const lvl = Math.min(2, Math.max(0, req.clothing)) as 0 | 1 | 2;
+      return `${folder}${lvl}.jpg`;
+    }
+    return null;
   }
 
   private avatarSvg(level: ClothingLevel): string {
@@ -140,5 +205,6 @@ export class CinematicOverlay {
   hide(): void {
     this.active = false;
     this.el.classList.add('hidden');
+    this.el.classList.remove('has-art');
   }
 }
