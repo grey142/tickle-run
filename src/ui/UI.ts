@@ -3,6 +3,7 @@ import { STORE_PRICES as PRICES } from '../economy/SaveStore';
 import type { Economy } from '../economy/Economy';
 import { ADVENTURERS } from '../catalogs/adventurers';
 import type { EquipmentSystem } from '../equipment/EquipmentSystem';
+import type { Input, TiltPermissionState } from '../game/Input';
 
 export type UICallbacks = {
   onStart: () => void;
@@ -17,12 +18,14 @@ export type UICallbacks = {
   onSelectAdventurer: (id: string) => void;
   onRevive: () => void;
   onEquipActivate: (kind: 'shield' | 'magnet' | 'boost') => void;
+  onEnableTilt: () => void;
 };
 
 export class UI {
   root: HTMLDivElement;
   private cbs: UICallbacks;
   private economy: Economy;
+  private input: Input | null = null;
 
   titleEl: HTMLDivElement;
   hudEl: HTMLDivElement;
@@ -30,6 +33,9 @@ export class UI {
   goEl: HTMLDivElement;
   storeEl: HTMLDivElement;
   countdownEl: HTMLDivElement;
+  swipeHintsEl: HTMLDivElement;
+  private swipeHintShown = false;
+  private swipeHintTimer = 0;
 
   constructor(parent: HTMLElement, economy: Economy, cbs: UICallbacks) {
     this.economy = economy;
@@ -46,9 +52,14 @@ export class UI {
       <p class="tag">PG-13 cartoon endless chase · Clothing = lives</p>
       <button class="btn" data-act="start">Start Run</button>
       <button class="btn secondary" data-act="store">Store</button>
-      <p class="tag" style="margin-top:16px;font-size:0.85rem">
+      <button class="btn tilt-btn hidden" data-act="enable-tilt" type="button">Enable tilt</button>
+      <p class="tag hint-desktop" style="margin-top:16px;font-size:0.85rem">
         Jump: ↑ / Space · Slide: ↓ / C · Strafe: A/D / Arrows<br/>
-        Swipe on touch · Esc pause
+        Esc / P pause · Equip via HUD
+      </p>
+      <p class="tag hint-mobile" style="margin-top:16px;font-size:0.9rem">
+        Swipe to jump · Tilt to move<br/>
+        Swipe ↓ slide · ←→ turn · Drag to strafe if no tilt
       </p>
     `;
     this.root.appendChild(this.titleEl);
@@ -65,15 +76,26 @@ export class UI {
       </div>
       <div class="chase-banner hidden" id="hud-chase">TICKLE MONSTER CAUGHT UP! <span id="hud-chase-t"></span></div>
       <div class="bottom">
-        <div class="equip-bar">
-          <button class="equip-btn" data-eq="shield" title="Shield">🛡️<span class="cd" id="cd-shield"></span></button>
-          <button class="equip-btn" data-eq="magnet" title="Gem Magnet">🧲<span class="cd" id="cd-magnet"></span></button>
-          <button class="equip-btn" data-eq="boost" title="Boost">⚡<span class="cd" id="cd-boost"></span></button>
+        <div class="equip-bar" data-ui="1">
+          <button class="equip-btn" data-ui="1" data-eq="shield" title="Shield" type="button">🛡️<span class="cd" id="cd-shield"></span></button>
+          <button class="equip-btn" data-ui="1" data-eq="magnet" title="Gem Magnet" type="button">🧲<span class="cd" id="cd-magnet"></span></button>
+          <button class="equip-btn" data-ui="1" data-eq="boost" title="Boost" type="button">⚡<span class="cd" id="cd-boost"></span></button>
         </div>
-        <button class="btn secondary" style="min-width:auto;padding:8px 14px" data-act="pause">Pause</button>
+        <button class="btn secondary pause-btn" data-ui="1" data-act="pause" type="button">Pause</button>
       </div>
     `;
     this.root.appendChild(this.hudEl);
+
+    this.swipeHintsEl = document.createElement('div');
+    this.swipeHintsEl.id = 'swipe-hints';
+    this.swipeHintsEl.classList.add('hidden');
+    this.swipeHintsEl.innerHTML = `
+      <span class="swipe-chev up">▲</span>
+      <span class="swipe-chev down">▼</span>
+      <span class="swipe-chev left">◀</span>
+      <span class="swipe-chev right">▶</span>
+    `;
+    this.root.appendChild(this.swipeHintsEl);
 
     this.countdownEl = document.createElement('div');
     this.countdownEl.id = 'countdown';
@@ -119,6 +141,7 @@ export class UI {
       if (act === 'quit') this.cbs.onQuitTitle();
       if (act === 'restart') this.cbs.onRestart();
       if (act === 'revive') this.cbs.onRevive();
+      if (act === 'enable-tilt') this.cbs.onEnableTilt();
       if (t.dataset.eq) this.cbs.onEquipActivate(t.dataset.eq as 'shield' | 'magnet' | 'boost');
       if (t.dataset.buy) this.cbs.onBuyEquip(t.dataset.buy as 'shield' | 'magnet' | 'boost');
       if (t.hasAttribute('data-buyescape')) this.cbs.onBuyEscape();
@@ -126,10 +149,75 @@ export class UI {
       if (t.dataset.select) this.cbs.onSelectAdventurer(t.dataset.select);
     });
 
+    // Equip / pause: touchend so we don't wait for click delay; stop swipe from starting
+    this.hudEl.addEventListener(
+      'touchend',
+      (e) => {
+        const t = (e.target as HTMLElement).closest('[data-eq],[data-act="pause"]') as HTMLElement | null;
+        if (!t) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (t.dataset.eq) {
+          this.cbs.onEquipActivate(t.dataset.eq as 'shield' | 'magnet' | 'boost');
+        } else if (t.dataset.act === 'pause') {
+          window.dispatchEvent(new CustomEvent('tickle-pause'));
+        }
+      },
+      { passive: false }
+    );
+
     this.hudEl.querySelector('[data-act="pause"]')?.addEventListener('click', (e) => {
       e.stopPropagation();
       window.dispatchEvent(new CustomEvent('tickle-pause'));
     });
+  }
+
+  bindInput(input: Input): void {
+    this.input = input;
+    this.refreshTiltButton();
+  }
+
+  refreshTiltButton(): void {
+    const btn = this.titleEl.querySelector('[data-act="enable-tilt"]') as HTMLButtonElement | null;
+    if (!btn || !this.input) return;
+    const state = this.input.tiltPermission;
+    const coarse =
+      typeof window !== 'undefined' &&
+      (window.matchMedia('(pointer: coarse)').matches ||
+        window.matchMedia('(hover: none)').matches ||
+        'ontouchstart' in window);
+
+    if (state === 'unsupported') {
+      btn.classList.add('hidden');
+      return;
+    }
+    if (state === 'granted') {
+      if (!coarse) {
+        btn.classList.add('hidden');
+        return;
+      }
+      btn.classList.remove('hidden');
+      btn.classList.add('ok');
+      btn.textContent = 'Tilt on ✓';
+      btn.disabled = true;
+      return;
+    }
+    if (state === 'denied') {
+      btn.classList.remove('hidden');
+      btn.classList.remove('ok');
+      btn.textContent = 'Tilt blocked — drag to strafe';
+      btn.disabled = true;
+      return;
+    }
+    // needs-gesture | unknown — show so the user can grant (esp. iOS)
+    btn.classList.remove('hidden');
+    btn.classList.remove('ok');
+    btn.textContent = 'Enable tilt';
+    btn.disabled = false;
+  }
+
+  setTiltState(_state: TiltPermissionState): void {
+    this.refreshTiltButton();
   }
 
   showTitle(): void {
@@ -139,6 +227,8 @@ export class UI {
     this.goEl.classList.add('hidden');
     this.storeEl.classList.add('hidden');
     this.countdownEl.classList.add('hidden');
+    this.hideSwipeHints();
+    this.refreshTiltButton();
   }
 
   showPlaying(): void {
@@ -147,6 +237,29 @@ export class UI {
     this.pauseEl.classList.add('hidden');
     this.goEl.classList.add('hidden');
     this.storeEl.classList.add('hidden');
+  }
+
+  beginSwipeHints(): void {
+    const coarse =
+      typeof window !== 'undefined' &&
+      (window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
+    if (!coarse) return;
+    this.swipeHintShown = true;
+    this.swipeHintTimer = 10;
+    this.swipeHintsEl.classList.remove('hidden', 'fade');
+  }
+
+  updateSwipeHints(dt: number): void {
+    if (!this.swipeHintShown) return;
+    this.swipeHintTimer -= dt;
+    if (this.swipeHintTimer <= 2) this.swipeHintsEl.classList.add('fade');
+    if (this.swipeHintTimer <= 0) this.hideSwipeHints();
+  }
+
+  hideSwipeHints(): void {
+    this.swipeHintShown = false;
+    this.swipeHintTimer = 0;
+    this.swipeHintsEl.classList.add('hidden', 'fade');
   }
 
   showPause(): void {
@@ -234,6 +347,7 @@ export class UI {
     breakdown: { points: number; fromScore: number; collected: number }
   ): void {
     this.goEl.classList.remove('hidden');
+    this.hideSwipeHints();
     this.goEl.innerHTML = `
       <div class="card panel">
         <h2>Game Over</h2>
@@ -295,8 +409,8 @@ export class UI {
           selected
             ? '<span class="gem-bal">Selected</span>'
             : unlocked
-              ? `<button class="btn secondary" style="min-width:auto;padding:8px 12px" data-select="${a.id}">Select</button>`
-              : `<button class="btn" style="min-width:auto;padding:8px 12px" data-adv="${a.id}">🪶 ${a.unlockCost}</button>`
+              ? `<button class="btn secondary" style="min-width:auto;padding:10px 14px" data-select="${a.id}">Select</button>`
+              : `<button class="btn" style="min-width:auto;padding:10px 14px" data-adv="${a.id}">🪶 ${a.unlockCost}</button>`
         }
       </div>`;
     }).join('');
@@ -313,7 +427,7 @@ export class UI {
             ${
               it.owned
                 ? '<span class="gem-bal">Owned</span>'
-                : `<button class="btn" style="min-width:auto;padding:8px 12px" data-buy="${it.id}">🪶 ${it.price}</button>`
+                : `<button class="btn" style="min-width:auto;padding:10px 14px" data-buy="${it.id}">🪶 ${it.price}</button>`
             }
           </div>`
           )
@@ -323,7 +437,7 @@ export class UI {
           ${
             d.hasEscapeGem
               ? '<span class="gem-bal">Ready</span>'
-              : `<button class="btn teal" style="min-width:auto;padding:8px 12px" data-buyescape>🪶 ${PRICES.escapeGem}</button>`
+              : `<button class="btn teal" style="min-width:auto;padding:10px 14px" data-buyescape>🪶 ${PRICES.escapeGem}</button>`
           }
         </div>
         <h3 style="margin-top:8px">Adventurers</h3>

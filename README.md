@@ -23,11 +23,26 @@ npm run preview
 |--------|----------------|
 | Jump | ↑ / W / Space / swipe up |
 | Slide | ↓ / S / C / Ctrl / swipe down |
-| Strafe / lane change | A/D / ←→ / swipe left-right / drag |
+| Turn / lane dash | A/D / ←→ / swipe left-right |
+| Strafe along track | Hold A/D · **tilt phone** · drag (fallback) |
 | Pause | Esc / P / Pause button |
 | Equipment | HUD buttons (Shield / Magnet / Boost) |
 
 Jump and slide each last about **1 action beat** (~0.55s). You cannot jump on waterslides.
+
+## Playing on phone
+
+Tickle Run is **phone-first** (portrait). Desktop keyboard still works.
+
+1. **Open in a mobile browser** (Safari / Chrome) over HTTPS or localhost.
+2. **Add to Home Screen** for a fullscreen app-like shell:
+   - iOS Safari: Share → **Add to Home Screen**
+   - Android Chrome: menu → **Install app** / **Add to Home screen**
+   - Uses `manifest.webmanifest` + icons in `/public`.
+3. **Tilt to strafe**: on the title screen tap **Enable tilt** (required on iOS 13+ via `DeviceOrientationEvent.requestPermission()`). Neutral angle is calibrated when a run starts. If permission is denied, **drag** horizontally to strafe instead.
+4. **Swipe**: ↑ jump · ↓ slide · ←→ turn. Equipment and Pause sit in the thumb zone and use `data-ui` so they don’t steal gameplay swipes.
+5. If the phone is landscape on a short screen, a light **rotate to portrait** overlay appears.
+6. Safe-area insets, larger tap targets (~44px), and a capped pixel ratio keep HUD readable and playable on mid-range devices.
 
 ## Clothing & chase rules
 

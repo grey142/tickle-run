@@ -51,10 +51,23 @@ export class CinematicOverlay {
         </div>
         <div class="cin-text" id="cin-text"></div>
         <div class="cin-clothes" id="cin-clothes"></div>
+        <button class="btn secondary cin-skip" data-ui="1" type="button" id="cin-skip">Skip</button>
       </div>
     `;
     this.el.classList.add('hidden');
     parent.appendChild(this.el);
+    this.el.querySelector('#cin-skip')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.skip();
+    });
+  }
+
+  skip(): void {
+    if (!this.active) return;
+    this.hide();
+    const cb = this.onDone;
+    this.onDone = null;
+    cb?.();
   }
 
   get isPlaying(): boolean {

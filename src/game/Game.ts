@@ -50,16 +50,25 @@ export class Game {
   private paidOut = false;
   private pendingPayout = 0;
   private frozen = false;
+  private mobileLite = false;
   private anim = 0;
   private fromStoreTo: GameScreen = 'title';
 
   constructor(private container: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    this.renderer.setSize(container.clientWidth, container.clientHeight);
-    this.renderer.shadowMap.enabled = true;
+    const isCoarse =
+      typeof window !== 'undefined' &&
+      (window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: !isCoarse,
+      powerPreference: 'high-performance',
+    });
+    // Cap DPR for mid-range phones
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, isCoarse ? 1.75 : 2));
+    this.renderer.setSize(container.clientWidth, container.clientHeight, false);
+    this.renderer.shadowMap.enabled = !isCoarse;
     this.renderer.domElement.id = 'game-canvas';
     container.appendChild(this.renderer.domElement);
+    this.mobileLite = isCoarse;
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x1a1a2e);
@@ -78,9 +87,9 @@ export class Game {
     this.scene.add(hemi);
     const dir = new THREE.DirectionalLight(0xffe8d6, 1.1);
     dir.position.set(-4, 12, -6);
-    dir.castShadow = true;
+    dir.castShadow = !this.mobileLite;
     this.scene.add(dir);
-    const fill = new THREE.PointLight(0x9b5de5, 0.55, 40);
+    const fill = new THREE.PointLight(0x9b5de5, this.mobileLite ? 0.35 : 0.55, 40);
     fill.position.set(0, 3, 4);
     this.scene.add(fill);
 
@@ -111,11 +120,15 @@ export class Game {
       },
       onRevive: () => this.tryRevive(),
       onEquipActivate: (k) => this.equip?.tryActivate(k),
+      onEnableTilt: () => void this.enableTilt(),
     });
+    this.ui.bindInput(this.input);
 
     window.addEventListener('resize', this.onResize);
+    window.visualViewport?.addEventListener('resize', this.onResize);
+    window.addEventListener('orientationchange', this.onResize);
     window.addEventListener('tickle-pause', () => {
-      if (this.screen === 'playing' && !this.frozen) this.pause();
+      if (this.screen === 'playing' && !this.frozen && this.pendingResume === 'none') this.pause();
     });
 
     this.buildWorld();
@@ -145,9 +158,9 @@ export class Game {
     this.scene.add(hemi);
     const dir = new THREE.DirectionalLight(0xffe8d6, 1.1);
     dir.position.set(-4, 12, -6);
-    dir.castShadow = true;
+    dir.castShadow = !this.mobileLite;
     this.scene.add(dir);
-    const fill = new THREE.PointLight(0x9b5de5, 0.55, 40);
+    const fill = new THREE.PointLight(0x9b5de5, this.mobileLite ? 0.35 : 0.55, 40);
     fill.position.set(0, 3, 4);
     this.scene.add(fill);
 
@@ -182,6 +195,8 @@ export class Game {
     this.ui.showPlaying();
     this.ui.showCountdown(this.countdown);
     this.player.setClothing(3);
+    this.input.calibrateTilt();
+    this.ui.beginSwipeHints();
   }
 
   private toTitle(): void {
@@ -237,12 +252,20 @@ export class Game {
   }
 
   private onResize = (): void => {
-    const w = this.container.clientWidth;
-    const h = this.container.clientHeight;
+    const vv = window.visualViewport;
+    const w = Math.max(1, Math.floor(vv?.width ?? this.container.clientWidth));
+    const h = Math.max(1, Math.floor(vv?.height ?? this.container.clientHeight));
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h);
+    this.renderer.setSize(w, h, false);
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, this.mobileLite ? 1.75 : 2));
   };
+
+  private async enableTilt(): Promise<void> {
+    const state = await this.input.requestTiltPermission();
+    this.ui.setTiltState(state);
+    if (state === 'granted') this.input.calibrateTilt();
+  }
 
   private loop = (): void => {
     this.anim = requestAnimationFrame(this.loop);
@@ -254,6 +277,7 @@ export class Game {
 
   private update(dt: number): void {
     this.cinematic.update(dt);
+    if (this.screen === 'playing') this.ui.updateSwipeHints(dt);
 
     if (this.screen === 'title' || this.screen === 'store') {
       // idle spin camera
@@ -619,6 +643,8 @@ export class Game {
   dispose(): void {
     cancelAnimationFrame(this.anim);
     window.removeEventListener('resize', this.onResize);
+    window.visualViewport?.removeEventListener('resize', this.onResize);
+    window.removeEventListener('orientationchange', this.onResize);
     this.renderer.dispose();
   }
 }
