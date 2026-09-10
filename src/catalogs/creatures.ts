@@ -16,7 +16,7 @@ export const CREATURES: CreatureDef[] = [
     description: 'The chase boss — big, goofy, and feathered.',
     bodyColor: 0x7b2cbf,
     accentColor: 0xffd166,
-    scale: 1.35,
+    scale: 0.75,
   },
   {
     id: 'giggleBat',

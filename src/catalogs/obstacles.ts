@@ -14,30 +14,34 @@ export interface ObstacleDef {
   width: number;
   height: number;
   depth: number;
+  /** Bottom of collider above floor (high barriers leave a slide gap) */
+  clearance: number;
 }
 
 export const OBSTACLES: Record<HazardKind, ObstacleDef> = {
   log: {
     id: 'log',
     name: 'Log',
-    description: 'Low log — slide under.',
+    description: 'Low fallen log — jump over.',
     color: 0x8b5a2b,
-    avoid: 'slide',
+    avoid: 'jump',
     onSlide: false,
     width: 1.8,
-    height: 0.55,
-    depth: 0.6,
+    height: 0.5,
+    depth: 0.55,
+    clearance: 0,
   },
   vines: {
     id: 'vines',
     name: 'Vines',
-    description: 'Hanging vines — jump over.',
+    description: 'Ground vines — jump over.',
     color: 0x2d6a4f,
     avoid: 'jump',
     onSlide: false,
     width: 1.6,
-    height: 1.4,
-    depth: 0.4,
+    height: 0.5,
+    depth: 0.45,
+    clearance: 0,
   },
   laneWall: {
     id: 'laneWall',
@@ -47,8 +51,9 @@ export const OBSTACLES: Record<HazardKind, ObstacleDef> = {
     avoid: 'strafe',
     onSlide: false,
     width: 2.0,
-    height: 1.8,
+    height: 1.6,
     depth: 0.5,
+    clearance: 0,
   },
   tree: {
     id: 'tree',
@@ -57,9 +62,10 @@ export const OBSTACLES: Record<HazardKind, ObstacleDef> = {
     color: 0x52796f,
     avoid: 'strafe',
     onSlide: false,
-    width: 1.2,
-    height: 2.2,
-    depth: 1.0,
+    width: 1.0,
+    height: 1.8,
+    depth: 0.9,
+    clearance: 0,
   },
   slideRock: {
     id: 'slideRock',
@@ -68,20 +74,22 @@ export const OBSTACLES: Record<HazardKind, ObstacleDef> = {
     color: 0xadb5bd,
     avoid: 'strafe',
     onSlide: true,
-    width: 1.4,
-    height: 0.9,
-    depth: 0.8,
+    width: 1.2,
+    height: 0.5,
+    depth: 0.7,
+    clearance: 0,
   },
   slideBranch: {
     id: 'slideBranch',
     name: 'Slide Branch',
-    description: 'Branch across the slide — duck/strafe.',
+    description: 'Branch across the slide — slide under.',
     color: 0x774936,
     avoid: 'slide',
     onSlide: true,
     width: 2.0,
     height: 0.45,
     depth: 0.4,
+    clearance: 0.85,
   },
 };
 

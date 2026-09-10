@@ -149,7 +149,7 @@ export function makeMonster(): THREE.Group {
     g.add(arm);
   }
 
-  g.scale.setScalar(1.15);
+  g.scale.setScalar(0.55);
   return g;
 }
 
@@ -158,19 +158,23 @@ export function makeObstacleMesh(kind: HazardKind): THREE.Group {
   const g = new THREE.Group();
   g.name = kind;
   const mat = new THREE.MeshStandardMaterial({ color: def.color, roughness: 0.8 });
+  const clear = def.clearance ?? 0;
 
   if (kind === 'log') {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, def.width, 10), mat);
+    // Low ground log — jump over (height ~0.5)
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, def.width, 10), mat);
     m.rotation.z = Math.PI / 2;
-    m.position.y = 0.28;
+    m.position.y = def.height / 2;
     g.add(m);
   } else if (kind === 'vines') {
+    // Ground vines / roots — jump over
     for (let i = -1; i <= 1; i++) {
-      const v = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, def.height, 6), mat);
-      v.position.set(i * 0.45, 1.5, 0);
+      const v = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 0.55, 6), mat);
+      v.rotation.z = Math.PI / 2 + i * 0.2;
+      v.position.set(i * 0.4, 0.18, i * 0.05);
       g.add(v);
-      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), mat);
-      leaf.position.set(i * 0.45, 1.0, 0.1);
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 6), mat);
+      leaf.position.set(i * 0.35, 0.35, 0.05);
       g.add(leaf);
     }
   } else if (kind === 'laneWall') {
@@ -178,26 +182,29 @@ export function makeObstacleMesh(kind: HazardKind): THREE.Group {
     m.position.y = def.height / 2;
     g.add(m);
   } else if (kind === 'tree') {
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 1.4, 8), mat);
-    trunk.position.y = 0.7;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 1.2, 8), mat);
+    trunk.position.y = 0.6;
     g.add(trunk);
     const top = new THREE.Mesh(
-      new THREE.SphereGeometry(0.7, 10, 8),
+      new THREE.SphereGeometry(0.55, 10, 8),
       new THREE.MeshStandardMaterial({ color: 0x40916c, roughness: 0.05 })
     );
-    top.position.y = 1.7;
+    top.position.y = 1.35;
     g.add(top);
   } else if (kind === 'slideRock') {
-    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55), mat);
-    m.position.y = 0.45;
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32), mat);
+    m.position.y = def.height / 2;
     g.add(m);
   } else {
+    // Elevated branch — slide under (gap = clearance)
     const m = new THREE.Mesh(new THREE.BoxGeometry(def.width, def.height, def.depth), mat);
-    m.position.y = 1.3;
+    m.position.y = clear + def.height / 2;
     g.add(m);
   }
 
   g.userData.kind = kind;
+  g.userData.obstacleTop = clear + def.height;
+  g.userData.obstacleClearance = clear;
   return g;
 }
 
