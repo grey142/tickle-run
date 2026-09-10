@@ -474,12 +474,9 @@ export class Game {
         const hitZ = e.z + halfZ;
         if (dx > pHalfX + halfX || Math.abs(hitZ) > pHalfZ + halfZ) continue;
 
-        if (tdef.instantGameOver) {
-          // Black pit: paper-thin ground hitbox — only if feet touch the pit surface
-          const feet = hb.y;
-          const floor = e.floorY ?? 0;
-          const pitTop = floor + Math.max(0.06, tdef.height * 0.15);
-          if (hb.jumping || feet > pitTop + 0.02) continue; // airborne over the void = safe
+        if (tdef.instantGameOver || e.subKind === 'blackPit') {
+          // Paper-thin ground hitbox: only planted feet over the pit (jump/air = safe)
+          if (this.player.isAirborne() || this.player.groundClearance() > 0.08) continue;
           e.hit = true;
           this.triggerBlackPit();
           return;

@@ -76,7 +76,7 @@ export const TRAPS: Record<TrapKind, TrapDef> = {
     name: 'Black Pit',
     description: 'A long void in the floor — fall through to an endless tickle pit. Instant game over.',
     color: 0x050508,
-    height: 0.08, // paper-thin ground hitbox
+    height: 0.04, // paper-thin ground hitbox
     footprint: HALF_BLOCK * 1.15,
     depth: 3.2, // much longer — hard to jump over
     ground: true,

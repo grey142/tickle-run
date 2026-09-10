@@ -106,19 +106,31 @@ export class Player {
     return true;
   }
 
+  /** True while jumping or still clearly above the floor. */
+  isAirborne(): boolean {
+    return this.jumping || this.y - this.floorY > 0.1;
+  }
+
+  /** Feet clearance above floor (0 = planted). */
+  groundClearance(): number {
+    return Math.max(0, this.y - this.floorY);
+  }
+
   /** Swipe-down in midair: snap back to the floor immediately. */
   cutJumpToGround(): boolean {
-    if (!this.jumping) return false;
+    if (!this.jumping && this.groundClearance() <= 0.1) return false;
     this.jumping = false;
     this.jumpT = 0;
     this.poseY = 0;
+    this.y = this.floorY;
     this.mesh.scale.set(1, 1, 1);
+    this.mesh.position.set(this.x, this.y, 0);
     return true;
   }
 
   trySlide(): boolean {
-    // Mid-jump: swipe down / slide input cancels jump instead of starting a slide
-    if (this.jumping) return this.cutJumpToGround();
+    // Mid-jump / still in air: swipe down cancels jump instead of starting a slide
+    if (this.isAirborne()) return this.cutJumpToGround();
     if (this.sliding) return false;
     this.sliding = true;
     this.slideT = 0;
@@ -147,8 +159,9 @@ export class Player {
     let wallBump = false;
     let turnedLeft = false;
     let turnedRight = false;
-    if (input.wantsJump()) this.tryJump();
+    // Air-cancel first so swipe-down always wins over a same-frame jump
     if (input.wantsSlide()) this.trySlide();
+    else if (input.wantsJump()) this.tryJump();
     if (input.wantsLeft()) {
       turnedLeft = true;
       if (this.lane <= 0) wallBump = true;

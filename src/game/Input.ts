@@ -168,6 +168,12 @@ export class Input {
     const t = this.findTouch(e.touches, this.touchStart.id) ?? e.touches[0];
     if (!t) return;
     this.dragX = (t.clientX - this.touchStart.x) / (window.innerWidth * 0.25);
+    // Early air-cancel: register swipe-down as soon as the finger moves down enough
+    const dx = t.clientX - this.touchStart.x;
+    const dy = t.clientY - this.touchStart.y;
+    if (dy > 28 && Math.abs(dy) > Math.abs(dx) * 0.85) {
+      this.swipeDown = true;
+    }
   };
 
   private onTouchEnd = (e: TouchEvent) => {
@@ -195,9 +201,9 @@ export class Input {
     const dy = t.clientY - this.touchStart.y;
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
-    const thresh = 40;
+    const thresh = 28; // easier vertical cancel on phone
     if (absX > thresh || absY > thresh) {
-      if (absY > absX) {
+      if (absY > absX * 0.75) {
         if (dy < 0) this.swipeUp = true;
         else this.swipeDown = true;
       } else {
