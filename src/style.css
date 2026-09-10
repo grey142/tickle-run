@@ -388,13 +388,13 @@ html, body, #app {
 
 /* Cinematic */
 #cinematic {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  background: #0a061866;
+  background: #0a0618cc;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
-  z-index: 20;
+  z-index: 200;
   pointer-events: auto;
   padding:
     max(12px, var(--safe-top))
@@ -406,8 +406,10 @@ html, body, #app {
   background: linear-gradient(180deg, #2b2d42, #1a1a2e);
   border: 3px solid var(--accent);
   border-radius: 20px;
-  padding: 20px 24px;
-  width: min(420px, 92vw);
+  padding: 16px 18px 18px;
+  width: min(560px, 94vw);
+  max-height: min(90dvh, 720px);
+  overflow: auto;
   text-align: center;
 }
 .cin-stage {

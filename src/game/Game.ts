@@ -103,7 +103,7 @@ export class Game {
     this.scene.add(fillB);
 
     this.input = new Input();
-    this.cinematic = new CinematicOverlay(container);
+    this.cinematic = new CinematicOverlay(document.body);
     this.ui = new UI(container, this.economy, {
       onStart: () => this.startRun(),
       onResume: () => this.resumeFromPause(),
@@ -333,10 +333,9 @@ export class Game {
     let turnCleared = false;
     if (turnedLeft) turnCleared = this.track.registerTurnInput('left') || turnCleared;
     if (turnedRight) turnCleared = this.track.registerTurnInput('right') || turnCleared;
-    // Edge bump while satisfying a curve swipe does not stack a second catch-up
-    if (wallBump && !turnCleared) {
-      this.chase.forceCatchUp();
-    }
+    // Wall bumps do NOT summon the monster — only obstacles do
+    void wallBump;
+    void turnCleared;
 
     const trackInfo = this.track.update(dt, speed, this.distance);
     const seg = trackInfo.segment;
@@ -353,8 +352,7 @@ export class Game {
     this.player.update(dt, this.input.strafeAxis());
 
     if (trackInfo.turnMiss) {
-      // Missed curve swipe → wall bump / catch-up
-      this.chase.forceCatchUp();
+      // Missed curve: brief invuln only — no monster catch-up
       this.player.invuln = Math.max(this.player.invuln, 0.35);
     }
 
@@ -528,12 +526,14 @@ export class Game {
     this.stats.obstaclesHit += 1;
     if (this.equip.consumeShield()) {
       this.player.invuln = 1.2;
-      this.chase.forceCatchUp();
+      // Shielded obstacle hit does not summon the monster
       return;
     }
     if (this.chase.isCaughtUp()) {
+      // Already beside you — this obstacle hit costs one life
       this.resolveMonsterCatch('obstacle');
     } else {
+      // First obstacle contact: monster catches up (15s)
       this.chase.forceCatchUp();
       this.player.invuln = 0.8;
     }
@@ -543,13 +543,13 @@ export class Game {
     this.stats.trapsHit += 1;
     if (this.equip.consumeShield()) {
       this.player.invuln = 1.2;
-      this.chase.forceCatchUp();
       return;
     }
 
-    // Already barefoot bikini — trap is fatal
+    // 1 life left (bikini barefoot) — trap is game over
     if (this.player.clothing <= 0) {
       this.lastFatalTrap = trapKind;
+      this.player.invuln = 2;
       this.playCinematic(
         {
           kind: 'gameOver',
@@ -564,44 +564,31 @@ export class Game {
       return;
     }
 
-    if (this.chase.isCaughtUp()) {
-      // Dual tickle: still only −1 life (Tickle Pit is the multi-life exception)
-      const before = this.player.clothing;
-      this.player.loseClothing(1);
-      this.stats.clothingLost += before - this.player.clothing;
-      this.playCinematic(
-        {
-          kind: 'dualTickle',
-          clothing: this.player.clothing,
-          trapKind,
-          duration: 2.6,
-        },
-        () => {
-          this.chase.reset();
-          this.player.invuln = 2;
-          this.playCinematic(
-            { kind: 'escape', clothing: this.player.clothing, duration: 1.4 },
-            () => this.beginCountdownAfterInterrupt()
-          );
-        }
-      );
-      return;
-    }
-
-    // Normal trap: strip 1 piece (can land on bikini) and keep running
+    // Always exactly −1 life (shirt → pants → shoes → bikini). Never strip more.
+    // Traps never summon the monster.
     const before = this.player.clothing;
     this.player.loseClothing(1);
     this.stats.clothingLost += before - this.player.clothing;
-    this.chase.forceCatchUp();
+    this.player.invuln = 1.5;
 
+    const after = this.player.clothing;
+    const dual = this.chase.isCaughtUp();
     this.playCinematic(
-      { kind: 'trapTickle', clothing: this.player.clothing, trapKind },
+      {
+        kind: dual ? 'dualTickle' : 'trapTickle',
+        clothing: after,
+        trapKind,
+        duration: dual ? 2.6 : 2.4,
+        message: dual
+          ? 'Trap tickle while the monster watches!'
+          : undefined,
+      },
       () => this.beginCountdownAfterInterrupt()
     );
   }
 
   private resolveMonsterCatch(_reason: string): void {
-    // Fatal only if already barefoot bikini
+    // Fatal only on last life (bikini barefoot)
     if (this.player.clothing <= 0) {
       this.lastFatalTrap = null;
       this.playCinematic(
@@ -616,26 +603,23 @@ export class Game {
       return;
     }
 
-    const full = this.player.clothing >= 3;
+    // Exactly one life lost per monster catch
+    const before = this.player.clothing;
     this.playCinematic(
       {
         kind: 'monsterCatch',
-        clothing: this.player.clothing,
+        clothing: before,
         duration: 2.5,
-        message: full
-          ? 'Harsh tickle! You lose shirt & pants!'
-          : 'The Tickle Monster strips you — keep running!',
+        message:
+          before >= 3
+            ? 'Monster catch! You lose your shirt!'
+            : before === 2
+              ? 'Monster catch! You lose your pants!'
+              : 'Monster catch! You lose your shoes — bikini run!',
       },
       () => {
-        if (full) {
-          // First harsh catch: lose 2, escape (may land on lingerie)
-          this.player.loseClothing(2);
-          this.stats.clothingLost += 2;
-        } else {
-          // Second survivable catch: down to barefoot bikini, still alive
-          this.stats.clothingLost += this.player.clothing;
-          this.player.setClothing(0);
-        }
+        this.player.loseClothing(1);
+        this.stats.clothingLost += 1;
         this.chase.reset();
         this.player.invuln = 2;
         this.playCinematic(

@@ -43,10 +43,10 @@ const LINES: Record<CinematicKind, string[]> = {
 };
 
 const CLOTHING_LABELS = [
-  'Bikini',
-  'Lingerie + boots',
-  'No jacket',
-  'Fully clothed',
+  '1 life — bikini barefoot',
+  '2 lives — lingerie + boots',
+  '3 lives — shirtless (bra + jeans)',
+  '4 lives — fully clothed',
 ];
 
 /** Traps that have cinematic still packs under public/cinematics/<id>/ */

@@ -250,7 +250,7 @@ export class TrackGenerator {
     };
 
     // Obstacles — skip mid-transition clutter a bit on ramps
-    const obsChance = type === 'rampUp' ? 0.15 + d * 0.2 : 0.35 + d * 0.4;
+    const obsChance = (type === 'rampUp' ? 0.15 + d * 0.2 : 0.35 + d * 0.4) * 1.05; // +5% obstacles
     if (this.rng() < obsChance) {
       const usable = onSlide
         ? OBSTACLE_LIST.filter((o) => o.onSlide)
@@ -278,7 +278,7 @@ export class TrackGenerator {
       }
     }
 
-    if (this.rng() < 0.2 + d * 0.25 && length > 22 && type !== 'rampUp') {
+    if (this.rng() < (0.2 + d * 0.25) * 1.05 && length > 22 && type !== 'rampUp') {
       const usable = onSlide
         ? OBSTACLE_LIST.filter((o) => o.onSlide)
         : OBSTACLE_LIST.filter((o) => !o.onSlide);
@@ -306,8 +306,8 @@ export class TrackGenerator {
     }
 
     // Traps (rarer; not on steep transitions). Black pits replace old narrow halls.
-    const wantPit = !onSlide && type === 'straight' && this.rng() < 0.1 + d * 0.12;
-    const wantTrap = !onSlide && type !== 'rampUp' && this.rng() < 0.12 + d * 0.15;
+    const wantPit = !onSlide && type === 'straight' && this.rng() < (0.1 + d * 0.12) * 1.5; // +50% pits
+    const wantTrap = !onSlide && type !== 'rampUp' && this.rng() < (0.12 + d * 0.15) * 1.5; // +50% traps
     if (wantPit || wantTrap) {
       let def = wantPit
         ? TRAP_LIST.find((t) => t.id === 'blackPit')!
@@ -338,13 +338,13 @@ export class TrackGenerator {
     }
 
     // Feather gem rows — only on remaining lanes
-    const gemRows = 1 + (this.rng() < 0.4 + d * 0.3 ? 1 : 0) + (this.rng() < d * 0.4 ? 1 : 0);
+    const gemRows = 1 + (this.rng() < (0.4 + d * 0.3) * 1.5 ? 1 : 0) + (this.rng() < d * 0.4 * 1.5 ? 1 : 0); // +50% gem rows
     for (let r = 0; r < gemRows; r++) {
       const z = zStart + 4 + r * 5 + this.rng() * 2;
       if (z >= zStart + length - 1) continue;
       const fy = floorAt(z);
       for (let lane = 0; lane < lanes; lane++) {
-        if (this.rng() < 0.55 + d * 0.2) {
+        if (this.rng() < Math.min(0.95, (0.55 + d * 0.2) * 1.5)) { // +50% gem density
           const mesh = makeFeatherGem();
           mesh.position.set(this.laneX(lane, lanes, xBias), fy + 0.6, z);
           this.root.add(mesh);
