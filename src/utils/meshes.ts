@@ -382,19 +382,20 @@ const LEVEL_PALETTES: Record<CaveLevelVisual, LevelPalette> = {
 
 export function makeCaveSegment(
   length: number,
-  lanes: number,
+  _lanes: number,
   type: string,
   seed: number,
   level: CaveLevelVisual = 'middle',
   floorYStart = 0,
   floorYEnd = 0,
-  narrowBias: -1 | 0 | 1 = 0
+  _narrowBias: -1 | 0 | 1 = 0
 ): THREE.Group {
   const g = new THREE.Group();
   const pal = LEVEL_PALETTES[level] ?? LEVEL_PALETTES.middle;
-  const floorW = lanes * 2.2 + 0.4;
-  // Shift narrow sections so the missing lane is on one side (no centered hallway)
-  const xShift = narrowBias * (2.2 / 2);
+  // Always full 3-lane corridor — never shrink width with lanes/narrowBias
+  const TRACK_LANES = 3;
+  const LANE_W = 2.2;
+  const floorW = TRACK_LANES * LANE_W + 0.4; // fixed 7.0
   const dy = floorYEnd - floorYStart;
   const incline = Math.atan2(-dy, length); // rotation.x so +z end is at floorYEnd relative to start
 
@@ -403,6 +404,9 @@ export function makeCaveSegment(
   const isCurveL = type === 'curveLeft';
   const isCurveR = type === 'curveRight';
   const turnSign = isCurveL ? -1 : isCurveR ? 1 : 0;
+
+  /** Path center X at local t in [0,1] — walls follow this so corridor width stays constant */
+  const pathXAt = (t: number) => turnSign * 1.6 * Math.sin(t * Math.PI);
 
   const floorMat = new THREE.MeshStandardMaterial({
     color: isSlide ? 0x48cae4 : pal.floor,
@@ -420,10 +424,9 @@ export function makeCaveSegment(
     const y1 = floorYStart + dy * t1;
     const yMid = (y0 + y1) / 2;
     const zMid = -length / 2 + (i + 0.5) * sliceLen;
-    // Lateral bend for curves: path drifts toward the turn direction through the segment
-    const xBend = turnSign * 1.6 * Math.sin(t0 * Math.PI);
+    const xBend = pathXAt(t0);
     const slab = new THREE.Mesh(new THREE.BoxGeometry(floorW, 0.28, sliceLen + 0.05), floorMat);
-    slab.position.set(xBend + xShift, yMid - 0.14, zMid);
+    slab.position.set(xBend, yMid - 0.14, zMid);
     if (isRamp || isSlide) {
       slab.rotation.x = incline;
     }
@@ -434,56 +437,53 @@ export function makeCaveSegment(
     g.add(slab);
   }
 
-  // Open-top cave: jagged side walls only (no ceiling)
+  // Open-top cave: jagged side walls only (no ceiling).
+  // Inner wall face stays at ±floorW/2 from path center — never pinches inward.
   const wallMat = new THREE.MeshStandardMaterial({
     color: pal.wall,
     roughness: 0.92,
     metalness: 0.05,
   });
   const wallBaseY = (floorYStart + floorYEnd) / 2;
+  const halfCorridor = floorW / 2;
+  const cols = Math.max(3, Math.floor(length / 5));
   for (const side of [-1, 1] as const) {
-    const baseX = side * (floorW / 2 + 0.35) + xShift;
-    const bulge = turnSign ? side * turnSign * 0.55 : 0;
-    // Stack uneven rock columns for a canyon look
-    const cols = Math.max(3, Math.floor(length / 5));
     for (let i = 0; i < cols; i++) {
       const h = 3.2 + ((seed * 3 + i * 7 + side + 3) % 5) * 0.55;
       const w = 0.55 + ((seed + i) % 3) * 0.12;
       const d = length / cols + 0.08;
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
       const z = -length / 2 + (i + 0.5) * (length / cols);
-      wall.position.set(baseX + bulge * 0.45 + side * ((i % 2) * 0.12), wallBaseY + h / 2 - 0.15, z);
+      const t = (i + 0.5) / cols;
+      const cx = pathXAt(t);
+      // Center of wall column: half-width outside the corridor edge (+ outward stagger only)
+      const outward = 0.08 + ((i % 2) * 0.1);
+      const wallX = cx + side * (halfCorridor + w / 2 + outward);
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+      wall.position.set(wallX, wallBaseY + h / 2 - 0.15, z);
       if (turnSign) {
         wall.rotation.y = -turnSign * 0.18 * side;
       }
       wall.castShadow = true;
       wall.receiveShadow = true;
       g.add(wall);
-      // Extra jutting rock
+      // Extra rock only OUTSIDE the corridor (never toward the player)
       if ((seed + i + side) % 2 === 0) {
+        const jutW = 0.35;
         const jut = new THREE.Mesh(
-          new THREE.BoxGeometry(0.35, 0.5 + (i % 3) * 0.25, 0.45),
+          new THREE.BoxGeometry(jutW, 0.5 + (i % 3) * 0.25, 0.45),
           wallMat
         );
-        jut.position.set(baseX - side * 0.25, wallBaseY + 1.1 + (i % 4) * 0.4, z);
+        jut.position.set(
+          cx + side * (halfCorridor + w + jutW / 2 + 0.05),
+          wallBaseY + 1.1 + (i % 4) * 0.4,
+          z
+        );
         g.add(jut);
       }
     }
   }
 
-  // Optional fake junction spur (visual only)
-  if ((seed % 7 === 0) && type === 'straight' && lanes >= 2) {
-    const spurSide = seed % 2 === 0 ? -1 : 1;
-    const spur = new THREE.Mesh(new THREE.BoxGeometry(floorW * 0.55, 0.22, 4), floorMat);
-    spur.position.set(spurSide * (floorW * 0.65), floorYStart - 0.05, length * 0.15);
-    spur.rotation.y = spurSide * 0.55;
-    g.add(spur);
-    const block = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.4, 3.2), wallMat);
-    block.position.set(spurSide * (floorW * 0.95), floorYStart + 1.1, length * 0.15);
-    g.add(block);
-  }
-
-  // Purple (left) + blue (right) crystal lights on stone
+  // Purple (left) + blue (right) crystal lights on the OUTER wall face
   const purpleMat = new THREE.MeshStandardMaterial({
     color: 0xc77dff,
     emissive: 0x9b5de5,
@@ -501,6 +501,8 @@ export function makeCaveSegment(
   const crystalCount = Math.max(2, Math.floor(length / 9));
   for (let i = 0; i < crystalCount; i++) {
     const z = -length / 2 + 2.5 + i * (length / (crystalCount + 0.5));
+    const t = (z + length / 2) / length;
+    const cx = pathXAt(Math.min(1, Math.max(0, t)));
     const y = wallBaseY + 0.35 + ((seed + i) % 4) * 0.35;
     for (const side of [-1, 1] as const) {
       const matC = side < 0 ? purpleMat : blueMat;
@@ -515,11 +517,11 @@ export function makeCaveSegment(
         crystal.rotation.x = -0.2 + k * 0.1;
         cluster.add(crystal);
       }
-      cluster.position.set(side * (floorW / 2 - 0.15), y, z);
+      // Sit on the wall, just outside corridor edge
+      cluster.position.set(cx + side * (halfCorridor + 0.2), y, z);
       g.add(cluster);
-      // Soft colored point light soaking the stone
       const light = new THREE.PointLight(side < 0 ? 0xb388ff : 0x4cc9f0, 0.55, 8, 2);
-      light.position.set(side * (floorW / 2 - 0.4), y + 0.3, z);
+      light.position.set(cx + side * (halfCorridor + 0.15), y + 0.3, z);
       g.add(light);
     }
   }
@@ -598,7 +600,7 @@ export function makeCaveSegment(
     }
   }
 
-  g.userData.lanes = lanes;
+  g.userData.lanes = TRACK_LANES;
   g.userData.length = length;
   g.userData.type = type;
   g.userData.level = level;

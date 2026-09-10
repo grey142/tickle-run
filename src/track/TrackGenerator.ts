@@ -240,8 +240,8 @@ export class TrackGenerator {
 
   private populateSegment(seg: Segment): void {
     const d = this.difficulty();
-    const { type, lanes, length, zStart, floorYStart, floorYEnd, narrowBias } = seg;
-    const xBias = narrowBias * (LANE_WIDTH / 2);
+    const { type, lanes, length, zStart, floorYStart, floorYEnd } = seg;
+    const xBias = 0; // corridor never shifts / narrows
     const onSlide = type === 'waterslide';
 
     const floorAt = (z: number) => {
