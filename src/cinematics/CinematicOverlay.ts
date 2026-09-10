@@ -50,7 +50,7 @@ const CLOTHING_LABELS = [
 ];
 
 /** Traps that have cinematic still packs under public/cinematics/<id>/ */
-const CIN_TRAPS: TrapKind[] = ['floorSlime', 'handSwarm', 'vineTrap', 'shade'];
+const CIN_TRAPS: TrapKind[] = ['floorSlime', 'handSwarm', 'vineTrap', 'shade', 'blackPit'];
 
 export class CinematicOverlay {
   el: HTMLDivElement;
@@ -165,7 +165,15 @@ export class CinematicOverlay {
     const base = import.meta.env.BASE_URL || '/';
     const folder = `${base}cinematics/${trap}/`;
 
-    if (req.trapGameOver || (req.kind === 'gameOver' && trap)) {
+    if (
+      req.trapGameOver ||
+      (req.kind === 'gameOver' && trap) ||
+      (trap === 'blackPit' && (req.kind === 'fallOff' || req.kind === 'gameOver'))
+    ) {
+      return `${folder}go.jpg`;
+    }
+    if (trap === 'blackPit') {
+      // Tickle Pit is GO-only — always the pit still
       return `${folder}go.jpg`;
     }
     if (req.kind === 'trapTickle' || req.kind === 'dualTickle') {

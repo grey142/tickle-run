@@ -631,18 +631,18 @@ export class Game {
   }
 
   private triggerBlackPit(): void {
+    this.lastFatalTrap = 'blackPit';
+    this.player.setClothing(0);
     this.playCinematic(
       {
-        kind: 'fallOff',
-        clothing: this.player.clothing,
+        kind: 'gameOver',
+        clothing: 0,
         trapKind: 'blackPit',
+        trapGameOver: true,
         message: 'You fell into the Tickle Pit — every trap at once!',
-        duration: 2.8,
+        duration: 3.2,
       },
-      () => {
-      this.lastFatalTrap = null;
-      this.endRun(false);
-    }
+      () => this.endRun(false, true)
     );
   }
 
