@@ -106,8 +106,20 @@ export class Player {
     return true;
   }
 
+  /** Swipe-down in midair: snap back to the floor immediately. */
+  cutJumpToGround(): boolean {
+    if (!this.jumping) return false;
+    this.jumping = false;
+    this.jumpT = 0;
+    this.poseY = 0;
+    this.mesh.scale.set(1, 1, 1);
+    return true;
+  }
+
   trySlide(): boolean {
-    if (this.jumping || this.sliding) return false;
+    // Mid-jump: swipe down / slide input cancels jump instead of starting a slide
+    if (this.jumping) return this.cutJumpToGround();
+    if (this.sliding) return false;
     this.sliding = true;
     this.slideT = 0;
     return true;
