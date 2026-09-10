@@ -178,22 +178,25 @@ export function makeObstacleMesh(kind: HazardKind): THREE.Group {
       g.add(leaf);
     }
   } else if (kind === 'laneWall') {
+    // Low barrier — jump over
     const m = new THREE.Mesh(new THREE.BoxGeometry(def.width, def.height, def.depth), mat);
     m.position.y = def.height / 2;
     g.add(m);
   } else if (kind === 'tree') {
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 1.2, 8), mat);
-    trunk.position.y = 0.6;
+    // Low stump — jump over
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, def.height, 8), mat);
+    trunk.position.y = def.height / 2;
     g.add(trunk);
     const top = new THREE.Mesh(
-      new THREE.SphereGeometry(0.55, 10, 8),
-      new THREE.MeshStandardMaterial({ color: 0x40916c, roughness: 0.05 })
+      new THREE.SphereGeometry(0.22, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0x40916c, emissive: 0x102010 })
     );
-    top.position.y = 1.35;
+    top.position.y = def.height + 0.05;
     g.add(top);
   } else if (kind === 'slideRock') {
-    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32), mat);
-    m.position.y = def.height / 2;
+    // Elevated overhang — slide under (gap = clearance)
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.38), mat);
+    m.position.y = clear + def.height / 2;
     g.add(m);
   } else {
     // Elevated branch — slide under (gap = clearance)

@@ -428,22 +428,15 @@ export class Game {
         const head = hb.y + hb.h;
         let avoided = false;
 
-        // Jump clears low ground obstacles when feet clear the top
+        // Every obstacle is jump-over or slide-under
         if (def.avoid === 'jump') {
-          if (hb.jumping && feet + 0.15 >= top) avoided = true;
-          if (hb.jumping) avoided = true; // jump action is enough for marked jumpables
-        }
-        // Slide clears elevated barriers (gap under)
-        if (def.avoid === 'slide') {
-          if (hb.sliding && head <= clear + 0.15) avoided = true;
+          if (hb.jumping) avoided = true;
+        } else if (def.avoid === 'slide') {
           if (hb.sliding) avoided = true;
         }
-        // Height fallback: leaping clear of a low prop always works
-        if (!avoided && hb.jumping && top <= 0.55 && feet + 0.1 >= top) avoided = true;
-        if (!avoided && hb.sliding && clear >= 0.7 && head <= clear + 0.2) avoided = true;
-
-        if (def.avoid === 'strafe' && dx > 0.85) avoided = true;
-        if ((def.id === 'laneWall' || def.id === 'tree') && dx > 0.9) avoided = true;
+        // Height fallbacks (in case action + geometry disagree)
+        if (!avoided && hb.jumping && clear < 0.35 && top <= 0.65) avoided = true;
+        if (!avoided && hb.sliding && clear >= 0.7 && head <= clear + 0.25) avoided = true;
         if (avoided) continue;
 
         e.hit = true;

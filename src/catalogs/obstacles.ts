@@ -10,8 +10,8 @@ export interface ObstacleDef {
   name: string;
   description: string;
   color: number;
-  /** Required avoid action */
-  avoid: 'jump' | 'slide' | 'strafe' | 'none';
+  /** Required avoid action — every obstacle is jump or slide */
+  avoid: 'jump' | 'slide';
   /** Allowed on waterslide segments */
   onSlide: boolean;
   width: number;
@@ -48,39 +48,39 @@ export const OBSTACLES: Record<HazardKind, ObstacleDef> = {
   },
   laneWall: {
     id: 'laneWall',
-    name: 'Lane Wall',
-    description: 'Blocks half a lane — strafe around.',
+    name: 'Low Barrier',
+    description: 'Low stone barrier — jump over.',
     color: 0x6c757d,
-    avoid: 'strafe',
+    avoid: 'jump',
     onSlide: false,
     width: HALF_BLOCK,
-    height: 1.6,
+    height: 0.5,
     depth: 0.35,
     clearance: 0,
   },
   tree: {
     id: 'tree',
-    name: 'Cave Tree',
-    description: 'Sturdy trunk blocking half a lane.',
+    name: 'Stump',
+    description: 'Low cave stump — jump over.',
     color: 0x52796f,
-    avoid: 'strafe',
+    avoid: 'jump',
     onSlide: false,
-    width: HALF_BLOCK * 0.7,
-    height: 1.8,
-    depth: 0.45,
+    width: HALF_BLOCK * 0.75,
+    height: 0.5,
+    depth: 0.4,
     clearance: 0,
   },
   slideRock: {
     id: 'slideRock',
-    name: 'Waterslide Rock',
-    description: 'Rock on the slide — strafe only (no jump).',
+    name: 'Waterslide Overhang',
+    description: 'Rock overhang on the slide — slide under.',
     color: 0xadb5bd,
-    avoid: 'strafe',
+    avoid: 'slide',
     onSlide: true,
-    width: HALF_BLOCK * 0.8,
-    height: 0.5,
-    depth: 0.35,
-    clearance: 0,
+    width: HALF_BLOCK,
+    height: 0.45,
+    depth: 0.4,
+    clearance: 0.85,
   },
   slideBranch: {
     id: 'slideBranch',
