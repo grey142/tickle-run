@@ -564,24 +564,56 @@ export class Game {
       return;
     }
 
-    // Always exactly −1 life (shirt → pants → shoes → bikini). Never strip more.
-    // Traps never summon the monster.
+    // Dual: trap while Nyx Wyrm is caught up → instant GO unless full health (4 lives)
+    if (this.chase.isCaughtUp()) {
+      this.player.invuln = 2;
+      if (this.player.clothing >= 3) {
+        // Survive: cinematic in bikini, strip down to bikini, keep running
+        this.stats.clothingLost += this.player.clothing;
+        this.player.setClothing(0);
+        this.playCinematic(
+          {
+            kind: 'dualTickle',
+            clothing: 0,
+            trapKind,
+            duration: 2.8,
+            message: 'Trap + Nyx-Ribbed Tickle Wyrm! You barely escape in a bikini!',
+          },
+          () => {
+            this.chase.reset();
+            this.beginCountdownAfterInterrupt();
+          }
+        );
+      } else {
+        this.lastFatalTrap = trapKind;
+        this.player.setClothing(0);
+        this.playCinematic(
+          {
+            kind: 'dualTickle',
+            clothing: 0,
+            trapKind,
+            trapGameOver: true,
+            duration: 3.0,
+            message: `${TRAPS[trapKind]?.name ?? 'Trap'} + Tickle Wyrm — no escape!`,
+          },
+          () => this.endRun(false, true)
+        );
+      }
+      return;
+    }
+
+    // Solo trap: exactly −1 life. Never summon the monster.
     const before = this.player.clothing;
     this.player.loseClothing(1);
     this.stats.clothingLost += before - this.player.clothing;
     this.player.invuln = 1.5;
 
-    const after = this.player.clothing;
-    const dual = this.chase.isCaughtUp();
     this.playCinematic(
       {
-        kind: dual ? 'dualTickle' : 'trapTickle',
-        clothing: after,
+        kind: 'trapTickle',
+        clothing: this.player.clothing,
         trapKind,
-        duration: dual ? 2.6 : 2.4,
-        message: dual
-          ? 'Trap tickle while the monster watches!'
-          : undefined,
+        duration: 2.4,
       },
       () => this.beginCountdownAfterInterrupt()
     );
@@ -595,27 +627,28 @@ export class Game {
         {
           kind: 'monsterCatch',
           clothing: 0,
-          duration: 2.5,
-          message: 'Caught in a bikini — no more lives!',
+          trapGameOver: true,
+          duration: 3.0,
+          message: 'Nyx-Ribbed Tickle Wyrm wins — no more lives!',
         },
         () => this.endRun(false)
       );
       return;
     }
 
-    // Exactly one life lost per monster catch
+    // Exactly one life lost per solo Wyrm catch
     const before = this.player.clothing;
     this.playCinematic(
       {
         kind: 'monsterCatch',
         clothing: before,
-        duration: 2.5,
+        duration: 2.8,
         message:
           before >= 3
-            ? 'Monster catch! You lose your shirt!'
+            ? 'Nyx-Ribbed Tickle Wyrm! Shirt lost — keep running!'
             : before === 2
-              ? 'Monster catch! You lose your pants!'
-              : 'Monster catch! You lose your shoes — bikini run!',
+              ? 'The Wyrm strips your pants — keep running!'
+              : 'The Wyrm takes your shoes — bikini run!',
       },
       () => {
         this.player.loseClothing(1);

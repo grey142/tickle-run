@@ -160,10 +160,25 @@ export class CinematicOverlay {
   }
 
   private resolveArtUrl(req: CinematicRequest): string | null {
-    const trap = req.trapKind;
-    if (!trap || !CIN_TRAPS.includes(trap)) return null;
     const base = import.meta.env.BASE_URL || '/';
+    const trap = req.trapKind;
+
+    // Solo monster catches
+    if (req.kind === 'monsterCatch') {
+      const folder = `${base}cinematics/monster/`;
+      if (req.trapGameOver || req.clothing <= 0) return `${folder}go.jpg`;
+      if (req.clothing >= 3) return `${folder}boots.jpg`; // full health → bikini+boots still
+      return `${folder}bikini.jpg`; // half health
+    }
+
+    if (!trap || !CIN_TRAPS.includes(trap)) return null;
     const folder = `${base}cinematics/${trap}/`;
+
+    // Dual trap + monster
+    if (req.kind === 'dualTickle') {
+      if (req.trapGameOver) return `${folder}dual-go.jpg`;
+      return `${folder}dual.jpg`;
+    }
 
     if (
       req.trapGameOver ||
@@ -172,12 +187,9 @@ export class CinematicOverlay {
     ) {
       return `${folder}go.jpg`;
     }
-    if (trap === 'blackPit') {
-      // Tickle Pit is GO-only — always the pit still
-      return `${folder}go.jpg`;
-    }
-    if (req.kind === 'trapTickle' || req.kind === 'dualTickle') {
-      // Never show fully clothed — traps strip first; clamp 3→2
+    if (trap === 'blackPit') return `${folder}go.jpg`;
+
+    if (req.kind === 'trapTickle') {
       const lvl = Math.min(2, Math.max(0, req.clothing)) as 0 | 1 | 2;
       return `${folder}${lvl}.jpg`;
     }
