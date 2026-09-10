@@ -434,8 +434,10 @@ export class Game {
         if (!def) continue;
         const halfX = def.width * 0.5;
         const halfZ = Math.max(0.18, def.depth * 0.5);
-        // Must overlap the obstacle sprite in both X and Z
-        if (dx > pHalfX + halfX || dz > pHalfZ + halfZ) continue;
+        // Hitbox centered half a box further back (+Z) so the front doesn't ghost-hit early
+        const hitZ = e.z + halfZ;
+        const dzHit = Math.abs(hitZ);
+        if (dx > pHalfX + halfX || dzHit > pHalfZ + halfZ) continue;
 
         const clear = def.clearance ?? 0;
         const top = clear + def.height;
@@ -461,7 +463,9 @@ export class Game {
         const tdef = TRAPS[e.subKind as TrapKind];
         const halfX = (tdef?.footprint ?? 1.1) * 0.5;
         const halfZ = 0.35; // trap sprite depth
-        if (dx > pHalfX + halfX || dz > pHalfZ + halfZ) continue;
+        // Same back-shift as obstacles
+        const hitZ = e.z + halfZ;
+        if (dx > pHalfX + halfX || Math.abs(hitZ) > pHalfZ + halfZ) continue;
         e.hit = true;
         this.onTrapHit(e.subKind as TrapKind);
         return;
