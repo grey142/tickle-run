@@ -628,7 +628,7 @@ export class Game {
         kind: 'fallOff',
         clothing: this.player.clothing,
         trapKind: 'blackPit',
-        message: 'You fell into the black tickle pit — no escape!',
+        message: 'You fell into the Tickle Pit — every trap at once!',
         duration: 2.8,
       },
       () => this.endRun(false)

@@ -29,7 +29,7 @@ const LINES: Record<CinematicKind, string[]> = {
     'Dual giggle assault!',
     'Worst (best?) luck ever!',
   ],
-  fallOff: ['You slipped off the narrow ledge!', 'Into the tickle abyss!', 'The black pit swallowed you!', 'No escape from the tickle void!'],
+  fallOff: ['You slipped off the narrow ledge!', 'Into the Tickle Pit!', 'Every trap at once!', 'Held spread eagle — no escape!'],
   gameOver: ['Tickled out!', 'Too many giggles…', 'Adventure over — for now!'],
   escape: ['You wriggle free!', 'Escape!', 'Keep running!'],
   revive: ['Escape Gem activates!', 'Second wind!', 'Back on your feet!'],

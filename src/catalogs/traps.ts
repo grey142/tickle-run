@@ -83,9 +83,9 @@ export const TRAPS: Record<TrapKind, TrapDef> = {
   },
   blackPit: {
     id: 'blackPit',
-    name: 'Black Pit',
+    name: 'Tickle Pit',
     description:
-      'A long void in the floor — fall through to an endless tickle pit. Instant game over.',
+      'Falling into the Tickle Pit subjects you to all of the other traps at once. They take all your clothing at once, then tickle you together — slime ticklers, floating hands, shadowy hands all over, and vines poking and prodding between your toes and armpits while they hold you spread eagle.',
     color: 0x050508,
     height: 0.04,
     footprint: HALF_BLOCK * 1.15,
