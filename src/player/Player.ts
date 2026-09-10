@@ -17,17 +17,22 @@ export class Player {
   lanesAvailable: 1 | 2 | 3 = 3;
   x = 0;
   y = 0;
-  z = 0; // world forward progress tracked externally as distance
+  /** World floor height under the runner (ramps/slides/levels) */
+  floorY = 0;
+  z = 0;
   jumping = false;
   sliding = false;
   jumpT = 0;
   slideT = 0;
   targetLaneX = 0;
   onWaterslide = false;
+  onRamp = false;
   invuln = 0;
   alive = true;
   private bob = 0;
   private def: AdventurerDef;
+  /** Local pose offset above floor (jump arc / slide crouch / bob) */
+  private poseY = 0;
 
   constructor(def: AdventurerDef) {
     this.def = def;
@@ -55,16 +60,8 @@ export class Player {
     this.setClothing(3);
   }
 
-  private laneIndexCenter(): number {
-    // Map lane index so center stays middle of available lanes
-    if (this.lanesAvailable === 3) return this.lane;
-    if (this.lanesAvailable === 2) return this.lane === 0 ? 0 : 1;
-    return 0;
-  }
-
   syncLaneTarget(): void {
     const count = this.lanesAvailable;
-    // Clamp lane
     this.lane = Math.max(0, Math.min(count - 1, this.lane));
     const offset = (this.lane - (count - 1) / 2) * LANE_WIDTH;
     this.targetLaneX = offset;
@@ -74,6 +71,10 @@ export class Player {
     this.lanesAvailable = n;
     if (this.lane > n - 1) this.lane = n - 1;
     this.syncLaneTarget();
+  }
+
+  setFloorY(floorY: number): void {
+    this.floorY = floorY;
   }
 
   tryJump(): boolean {
@@ -104,60 +105,75 @@ export class Player {
     }
   }
 
-  /** Wall bump when trying to leave track */
   bumpWall(): boolean {
-    // Called when player tries to go past edge
     return true;
   }
 
-  handleInput(input: Input): { wallBump: boolean } {
+  handleInput(input: Input): { wallBump: boolean; turnedLeft: boolean; turnedRight: boolean } {
     let wallBump = false;
+    let turnedLeft = false;
+    let turnedRight = false;
     if (input.wantsJump()) this.tryJump();
     if (input.wantsSlide()) this.trySlide();
     if (input.wantsLeft()) {
+      turnedLeft = true;
       if (this.lane <= 0) wallBump = true;
       else this.tryLaneLeft();
     }
     if (input.wantsRight()) {
+      turnedRight = true;
       if (this.lane >= this.lanesAvailable - 1) wallBump = true;
       else this.tryLaneRight();
     }
-    return { wallBump };
+    return { wallBump, turnedLeft, turnedRight };
   }
 
   update(dt: number, strafeAxis: number): void {
     if (this.invuln > 0) this.invuln = Math.max(0, this.invuln - dt);
 
-    // Smooth lane lerp + fine strafe within lane
+    // Force slide pose on waterslides (no jump)
+    if (this.onWaterslide) {
+      if (this.jumping) {
+        this.jumping = false;
+        this.jumpT = 0;
+      }
+      this.sliding = true;
+      this.slideT = 0; // hold crouch while on slide
+    }
+
     const fine = strafeAxis * 0.35;
     const desired = this.targetLaneX + fine;
     this.x += (desired - this.x) * Math.min(1, dt * 12);
-
-    // Fall off check for narrow floors handled externally via x bounds
 
     if (this.jumping) {
       this.jumpT += dt;
       const t = this.jumpT / JUMP_DURATION;
       if (t >= 1) {
         this.jumping = false;
-        this.y = 0;
+        this.poseY = 0;
       } else {
-        this.y = Math.sin(t * Math.PI) * JUMP_HEIGHT;
+        this.poseY = Math.sin(t * Math.PI) * JUMP_HEIGHT;
       }
-    } else if (this.sliding) {
-      this.slideT += dt;
-      const t = this.slideT / SLIDE_DURATION;
-      this.y = -0.35;
-      this.mesh.scale.set(1, 0.55, 1.1);
-      if (t >= 1) {
-        this.sliding = false;
-        this.y = 0;
-        this.mesh.scale.set(1, 1, 1);
+      this.mesh.scale.set(1, 1, 1);
+    } else if (this.sliding || this.onWaterslide) {
+      if (!this.onWaterslide) {
+        this.slideT += dt;
+        const t = this.slideT / SLIDE_DURATION;
+        this.poseY = -0.35;
+        this.mesh.scale.set(1, 0.55, 1.1);
+        if (t >= 1) {
+          this.sliding = false;
+          this.poseY = 0;
+          this.mesh.scale.set(1, 1, 1);
+        }
+      } else {
+        this.poseY = -0.35;
+        this.mesh.scale.set(1, 0.55, 1.1);
       }
     } else {
       this.mesh.scale.set(1, 1, 1);
       this.bob += dt * 10;
-      this.y = Math.abs(Math.sin(this.bob)) * 0.05;
+      this.poseY = Math.abs(Math.sin(this.bob)) * 0.05;
       const legL = this.mesh.getObjectByName('legL');
       const legR = this.mesh.getObjectByName('legR');
       const armL = this.mesh.getObjectByName('armL');
@@ -169,14 +185,20 @@ export class Player {
       if (armR) armR.rotation.x = swing;
     }
 
+    // Slight pitch on ramps/slides for readability
+    if (this.onRamp) this.mesh.rotation.x = -0.12;
+    else if (this.onWaterslide) this.mesh.rotation.x = 0.18;
+    else this.mesh.rotation.x *= 0.85;
+
+    this.y = this.floorY + this.poseY;
     this.mesh.position.set(this.x, this.y, 0);
   }
 
-  /** AABB for collisions (local z~0) */
   getHitBox(): { x: number; y: number; w: number; h: number; sliding: boolean; jumping: boolean } {
-    const h = this.sliding ? 0.7 : this.jumping ? 1.0 : 1.6;
-    const y0 = this.sliding ? 0 : this.y;
-    return { x: this.x, y: y0, w: 0.7, h, sliding: this.sliding, jumping: this.jumping };
+    const sliding = this.sliding || this.onWaterslide;
+    const h = sliding ? 0.7 : this.jumping ? 1.0 : 1.6;
+    const y0 = sliding ? this.floorY : this.y;
+    return { x: this.x, y: y0, w: 0.7, h, sliding, jumping: this.jumping };
   }
 
   isInvulnerable(): boolean {

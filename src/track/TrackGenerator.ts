@@ -1,13 +1,13 @@
 import * as THREE from 'three';
-import type { HazardKind, TrapKind, PickupKind, SegmentType, LaneCount } from '../game/types';
-import { LANE_WIDTH } from '../game/types';
+import type { HazardKind, TrapKind, PickupKind, SegmentType, LaneCount, CaveLevel } from '../game/types';
+import { LANE_WIDTH, LEVEL_FLOOR_Y, LEVEL_ORDER } from '../game/types';
 import { makeCaveSegment, makeObstacleMesh, makeTrapMesh, makePickupMesh, makeFeatherGem } from '../utils/meshes';
 import { OBSTACLE_LIST } from '../catalogs/obstacles';
 import { TRAP_LIST } from '../catalogs/traps';
 
 export interface TrackEntity {
   mesh: THREE.Group;
-  z: number; // world z relative to player (player at 0, entities approach from +z)
+  z: number;
   lane: number;
   kind: 'obstacle' | 'trap' | 'pickup';
   subKind: string;
@@ -15,6 +15,7 @@ export interface TrackEntity {
   hit: boolean;
   avoid?: 'jump' | 'slide' | 'strafe' | 'none';
   onSlide?: boolean;
+  floorY: number;
 }
 
 export interface Segment {
@@ -23,7 +24,27 @@ export interface Segment {
   length: number;
   type: SegmentType;
   lanes: LaneCount;
-  levelY: number; // upper/middle/lower
+  /** @deprecated use floorYStart — kept for callers that read levelY as mid height */
+  levelY: number;
+  level: CaveLevel;
+  floorYStart: number;
+  floorYEnd: number;
+  /** Required swipe during turn window; null for non-curves */
+  turnRequired: 'left' | 'right' | null;
+  /** Player already satisfied the turn input */
+  turnCleared: boolean;
+  /** Miss already penalized */
+  turnMissed: boolean;
+}
+
+export interface TrackUpdateResult {
+  segment: Segment | null;
+  floorY: number;
+  /** True once when a curve turn window closes without the correct input */
+  turnMiss: boolean;
+  onRamp: boolean;
+  onWaterslide: boolean;
+  turnWindow: 'left' | 'right' | null;
 }
 
 function rand(seed: number): () => number {
@@ -32,6 +53,14 @@ function rand(seed: number): () => number {
     s = (s * 16807 + 0) % 2147483647;
     return (s - 1) / 2147483646;
   };
+}
+
+function levelIndex(level: CaveLevel): number {
+  return LEVEL_ORDER.indexOf(level);
+}
+
+function clampLevel(i: number): CaveLevel {
+  return LEVEL_ORDER[Math.max(0, Math.min(LEVEL_ORDER.length - 1, i))];
 }
 
 export class TrackGenerator {
@@ -44,9 +73,15 @@ export class TrackGenerator {
   private distanceRef = 0;
   private segmentIndex = 0;
 
+  /** Persistent cave level after transitions */
+  private currentLevel: CaveLevel = 'middle';
+  /** Segments remaining on this level before forcing a transition */
+  private stretchLeft = 4;
+  /** Prefer ramp vs slide after a stretch */
+  private nextTransition: 'rampUp' | 'waterslide' | null = null;
+
   constructor(scene: THREE.Scene) {
     scene.add(this.root);
-    // initial buffer
     for (let i = 0; i < 8; i++) this.spawnSegment();
   }
 
@@ -60,43 +95,103 @@ export class TrackGenerator {
     this.rng = rand(seed);
     this.distanceRef = 0;
     this.segmentIndex = 0;
+    this.currentLevel = 'middle';
+    this.stretchLeft = 4;
+    this.nextTransition = null;
     for (let i = 0; i < 8; i++) this.spawnSegment();
   }
 
   private difficulty(): number {
-    // 0..1 ramp
     return Math.min(1, this.distanceRef / 800);
   }
 
   private pickSegmentType(): SegmentType {
     const d = this.difficulty();
+    const idx = levelIndex(this.currentLevel);
+
+    // After a stretch, transition to another level when possible
+    if (this.stretchLeft <= 0) {
+      if (this.nextTransition) {
+        const t = this.nextTransition;
+        this.nextTransition = null;
+        return t;
+      }
+      // Choose reachable transition
+      const canUp = idx < LEVEL_ORDER.length - 1;
+      const canDown = idx > 0;
+      if (canUp && canDown) {
+        return this.rng() < 0.5 ? 'rampUp' : 'waterslide';
+      }
+      if (canUp) return 'rampUp';
+      if (canDown) return 'waterslide';
+      // Stuck on only level — reset stretch
+      this.stretchLeft = 3 + Math.floor(this.rng() * 3);
+    }
+
     const r = this.rng();
-    if (r < 0.08 + d * 0.05) return 'narrow1';
-    if (r < 0.18 + d * 0.08) return 'narrow2';
-    if (r < 0.28) return 'rampUp';
-    if (r < 0.42) return 'waterslide';
-    if (r < 0.5) return 'curveLeft';
-    if (r < 0.58) return 'curveRight';
+    // Narrow sections more common with difficulty
+    if (r < 0.07 + d * 0.06) return 'narrow1';
+    if (r < 0.16 + d * 0.08) return 'narrow2';
+    // Curves — more with distance
+    if (r < 0.28 + d * 0.08) return this.rng() < 0.5 ? 'curveLeft' : 'curveRight';
+    // Occasional early transition mid-stretch (rarer)
+    if (r < 0.32 && this.stretchLeft <= 2) {
+      const canUp = idx < LEVEL_ORDER.length - 1;
+      const canDown = idx > 0;
+      if (canUp && this.rng() < 0.5) return 'rampUp';
+      if (canDown) return 'waterslide';
+      if (canUp) return 'rampUp';
+    }
     return 'straight';
   }
 
   private lanesFor(type: SegmentType): LaneCount {
     if (type === 'narrow1') return 1;
     if (type === 'narrow2') return 2;
+    if (type === 'waterslide') return this.rng() < 0.35 ? 2 : 3;
     return 3;
   }
 
   spawnSegment(): void {
     const type = this.pickSegmentType();
     const lanes = this.lanesFor(type);
-    const length = 18 + Math.floor(this.rng() * 10);
-    const levelCycle = this.segmentIndex % 5;
-    const levelY = levelCycle === 1 ? 1.2 : levelCycle === 3 ? -0.8 : 0;
+    const length =
+      type === 'rampUp' || type === 'waterslide'
+        ? 22 + Math.floor(this.rng() * 8)
+        : type === 'curveLeft' || type === 'curveRight'
+          ? 16 + Math.floor(this.rng() * 6)
+          : 16 + Math.floor(this.rng() * 10);
 
-    const mesh = makeCaveSegment(length, lanes, type, this.segmentIndex + this.seed);
+    const floorYStart = LEVEL_FLOOR_Y[this.currentLevel];
+    let floorYEnd = floorYStart;
+    let levelAfter: CaveLevel = this.currentLevel;
+
+    if (type === 'rampUp') {
+      const next = clampLevel(levelIndex(this.currentLevel) + 1);
+      levelAfter = next;
+      floorYEnd = LEVEL_FLOOR_Y[next];
+    } else if (type === 'waterslide') {
+      const next = clampLevel(levelIndex(this.currentLevel) - 1);
+      levelAfter = next;
+      floorYEnd = LEVEL_FLOOR_Y[next];
+    }
+
+    const mesh = makeCaveSegment(
+      length,
+      lanes,
+      type,
+      this.segmentIndex + this.seed,
+      this.currentLevel,
+      floorYStart,
+      floorYEnd
+    );
+    // Mesh local Y is absolute floor heights baked into geometry; place at world z only
     mesh.position.z = this.nextZ + length / 2;
-    mesh.position.y = levelY;
+    mesh.position.y = 0;
     this.root.add(mesh);
+
+    const turnRequired: 'left' | 'right' | null =
+      type === 'curveLeft' ? 'left' : type === 'curveRight' ? 'right' : null;
 
     const seg: Segment = {
       mesh,
@@ -104,11 +199,35 @@ export class TrackGenerator {
       length,
       type,
       lanes,
-      levelY,
+      levelY: (floorYStart + floorYEnd) / 2,
+      level: this.currentLevel,
+      floorYStart,
+      floorYEnd,
+      turnRequired,
+      turnCleared: turnRequired === null,
+      turnMissed: false,
     };
     this.segments.push(seg);
-
     this.populateSegment(seg);
+
+    // Advance persistent level after transition segments
+    if (type === 'rampUp' || type === 'waterslide') {
+      this.currentLevel = levelAfter;
+      this.stretchLeft = 3 + Math.floor(this.rng() * 4); // 3–6 segments on new level
+      this.nextTransition = null;
+    } else {
+      this.stretchLeft = Math.max(0, this.stretchLeft - 1);
+      if (this.stretchLeft === 0 && !this.nextTransition) {
+        const idx = levelIndex(this.currentLevel);
+        const canUp = idx < LEVEL_ORDER.length - 1;
+        const canDown = idx > 0;
+        if (canUp && canDown) this.nextTransition = this.rng() < 0.5 ? 'rampUp' : 'waterslide';
+        else if (canUp) this.nextTransition = 'rampUp';
+        else if (canDown) this.nextTransition = 'waterslide';
+        else this.stretchLeft = 4;
+      }
+    }
+
     this.nextZ += length;
     this.segmentIndex++;
   }
@@ -119,47 +238,27 @@ export class TrackGenerator {
 
   private populateSegment(seg: Segment): void {
     const d = this.difficulty();
-    const { type, lanes, length, zStart, levelY } = seg;
+    const { type, lanes, length, zStart, floorYStart, floorYEnd } = seg;
     const onSlide = type === 'waterslide';
 
-    // Obstacles
-    const obsChance = 0.35 + d * 0.4;
-    if (this.rng() < obsChance) {
-      const pool = OBSTACLE_LIST.filter((o) => (onSlide ? o.onSlide : !o.onSlide || o.id === 'laneWall'));
-      const usable = onSlide
-        ? OBSTACLE_LIST.filter((o) => o.onSlide)
-        : OBSTACLE_LIST.filter((o) => !o.onSlide);
-      const list = usable.length ? usable : pool;
-      const def = list[Math.floor(this.rng() * list.length)];
-      const lane = Math.floor(this.rng() * lanes);
-      const z = zStart + 6 + this.rng() * (length - 10);
-      const mesh = makeObstacleMesh(def.id as HazardKind);
-      mesh.position.set(this.laneX(lane, lanes), levelY, z);
-      this.root.add(mesh);
-      this.entities.push({
-        mesh,
-        z,
-        lane,
-        kind: 'obstacle',
-        subKind: def.id,
-        lanesNeeded: lanes,
-        hit: false,
-        avoid: def.avoid,
-        onSlide: def.onSlide,
-      });
-    }
+    const floorAt = (z: number) => {
+      const t = Math.max(0, Math.min(1, (z - zStart) / length));
+      return floorYStart + (floorYEnd - floorYStart) * t;
+    };
 
-    // Sometimes a second obstacle farther
-    if (this.rng() < 0.2 + d * 0.25 && length > 22) {
+    // Obstacles — skip mid-transition clutter a bit on ramps
+    const obsChance = type === 'rampUp' ? 0.15 + d * 0.2 : 0.35 + d * 0.4;
+    if (this.rng() < obsChance) {
       const usable = onSlide
         ? OBSTACLE_LIST.filter((o) => o.onSlide)
         : OBSTACLE_LIST.filter((o) => !o.onSlide);
       if (usable.length) {
         const def = usable[Math.floor(this.rng() * usable.length)];
         const lane = Math.floor(this.rng() * lanes);
-        const z = zStart + length - 5;
+        const z = zStart + 6 + this.rng() * Math.max(2, length - 10);
+        const fy = floorAt(z);
         const mesh = makeObstacleMesh(def.id as HazardKind);
-        mesh.position.set(this.laneX(lane, lanes), levelY, z);
+        mesh.position.set(this.laneX(lane, lanes), fy, z);
         this.root.add(mesh);
         this.entities.push({
           mesh,
@@ -171,17 +270,46 @@ export class TrackGenerator {
           hit: false,
           avoid: def.avoid,
           onSlide: def.onSlide,
+          floorY: fy,
         });
       }
     }
 
-    // Traps (rarer)
-    if (this.rng() < 0.12 + d * 0.15) {
+    if (this.rng() < 0.2 + d * 0.25 && length > 22 && type !== 'rampUp') {
+      const usable = onSlide
+        ? OBSTACLE_LIST.filter((o) => o.onSlide)
+        : OBSTACLE_LIST.filter((o) => !o.onSlide);
+      if (usable.length) {
+        const def = usable[Math.floor(this.rng() * usable.length)];
+        const lane = Math.floor(this.rng() * lanes);
+        const z = zStart + length - 5;
+        const fy = floorAt(z);
+        const mesh = makeObstacleMesh(def.id as HazardKind);
+        mesh.position.set(this.laneX(lane, lanes), fy, z);
+        this.root.add(mesh);
+        this.entities.push({
+          mesh,
+          z,
+          lane,
+          kind: 'obstacle',
+          subKind: def.id,
+          lanesNeeded: lanes,
+          hit: false,
+          avoid: def.avoid,
+          onSlide: def.onSlide,
+          floorY: fy,
+        });
+      }
+    }
+
+    // Traps (rarer; not on steep transitions)
+    if (!onSlide && type !== 'rampUp' && this.rng() < 0.12 + d * 0.15) {
       const def = TRAP_LIST[Math.floor(this.rng() * TRAP_LIST.length)];
       const lane = Math.floor(this.rng() * lanes);
-      const z = zStart + 8 + this.rng() * (length - 12);
+      const z = zStart + 8 + this.rng() * Math.max(2, length - 12);
+      const fy = floorAt(z);
       const mesh = makeTrapMesh(def.id as TrapKind);
-      mesh.position.set(this.laneX(lane, lanes), levelY, z);
+      mesh.position.set(this.laneX(lane, lanes), fy, z);
       this.root.add(mesh);
       this.entities.push({
         mesh,
@@ -191,17 +319,20 @@ export class TrackGenerator {
         subKind: def.id,
         lanesNeeded: lanes,
         hit: false,
+        floorY: fy,
       });
     }
 
-    // Feather gem rows
+    // Feather gem rows — only on remaining lanes
     const gemRows = 1 + (this.rng() < 0.4 + d * 0.3 ? 1 : 0) + (this.rng() < d * 0.4 ? 1 : 0);
     for (let r = 0; r < gemRows; r++) {
       const z = zStart + 4 + r * 5 + this.rng() * 2;
+      if (z >= zStart + length - 1) continue;
+      const fy = floorAt(z);
       for (let lane = 0; lane < lanes; lane++) {
         if (this.rng() < 0.55 + d * 0.2) {
           const mesh = makeFeatherGem();
-          mesh.position.set(this.laneX(lane, lanes), levelY + 0.6, z);
+          mesh.position.set(this.laneX(lane, lanes), fy + 0.6, z);
           this.root.add(mesh);
           this.entities.push({
             mesh,
@@ -211,6 +342,7 @@ export class TrackGenerator {
             subKind: 'featherGem',
             lanesNeeded: lanes,
             hit: false,
+            floorY: fy,
           });
         }
       }
@@ -231,8 +363,9 @@ export class TrackGenerator {
       }
       const lane = Math.floor(this.rng() * lanes);
       const z = zStart + length * 0.5;
+      const fy = floorAt(z);
       const mesh = makePickupMesh(pick);
-      mesh.position.set(this.laneX(lane, lanes), levelY + 0.7, z);
+      mesh.position.set(this.laneX(lane, lanes), fy + 0.7, z);
       this.root.add(mesh);
       this.entities.push({
         mesh,
@@ -242,12 +375,45 @@ export class TrackGenerator {
         subKind: pick,
         lanesNeeded: lanes,
         hit: false,
+        floorY: fy,
       });
     }
   }
 
-  /** Scroll world toward player; return current segment under player */
-  update(dt: number, speed: number, distance: number): Segment | null {
+  /** Floor height under a world-local z (player at 0) */
+  getFloorYAt(z: number): number {
+    const seg = this.segments.find((s) => s.zStart <= z && s.zStart + s.length > z);
+    if (!seg) {
+      // fallback: nearest or current level height
+      if (this.segments.length) {
+        const s = this.segments[0];
+        return s.floorYStart;
+      }
+      return LEVEL_FLOOR_Y.middle;
+    }
+    const t = (z - seg.zStart) / seg.length;
+    return seg.floorYStart + (seg.floorYEnd - seg.floorYStart) * Math.max(0, Math.min(1, t));
+  }
+
+  /**
+   * Notify track that the player pressed left/right (for curve clearance).
+   * Returns true if the input counted toward the active turn.
+   */
+  registerTurnInput(dir: 'left' | 'right'): boolean {
+    const seg = this.segments.find((s) => s.zStart <= 0 && s.zStart + s.length > 0);
+    if (!seg || !seg.turnRequired || seg.turnCleared) return false;
+    // Turn window: middle 70% of the curve segment
+    const t = -seg.zStart / seg.length;
+    if (t < 0.1 || t > 0.85) return false;
+    if (dir === seg.turnRequired) {
+      seg.turnCleared = true;
+      return true;
+    }
+    return false;
+  }
+
+  /** Scroll world toward player */
+  update(dt: number, speed: number, distance: number): TrackUpdateResult {
     this.distanceRef = distance;
     const dz = speed * dt;
     for (const s of this.segments) {
@@ -259,7 +425,7 @@ export class TrackGenerator {
       e.mesh.position.z -= dz;
       if (e.kind === 'pickup') {
         e.mesh.rotation.y += dt * 2.5;
-        e.mesh.position.y += Math.sin(performance.now() * 0.005 + e.z) * 0.002;
+        e.mesh.position.y = e.floorY + 0.6 + Math.sin(performance.now() * 0.005 + e.z) * 0.05;
       }
     }
     this.nextZ -= dz;
@@ -278,10 +444,33 @@ export class TrackGenerator {
     });
 
     // Spawn ahead
-    while (this.nextZ < 80) this.spawnSegment();
+    while (this.nextZ < 90) this.spawnSegment();
 
-    // Current segment at z~0
-    return this.segments.find((s) => s.zStart <= 0 && s.zStart + s.length > 0) ?? null;
+    const segment = this.segments.find((s) => s.zStart <= 0 && s.zStart + s.length > 0) ?? null;
+    const floorY = this.getFloorYAt(0);
+
+    let turnMiss = false;
+    let turnWindow: 'left' | 'right' | null = null;
+    if (segment?.turnRequired) {
+      const t = -segment.zStart / segment.length;
+      if (t >= 0.1 && t <= 0.85 && !segment.turnCleared) {
+        turnWindow = segment.turnRequired;
+      }
+      // Past the window without clearing → miss once
+      if (t > 0.85 && !segment.turnCleared && !segment.turnMissed) {
+        segment.turnMissed = true;
+        turnMiss = true;
+      }
+    }
+
+    return {
+      segment,
+      floorY,
+      turnMiss,
+      onRamp: segment?.type === 'rampUp',
+      onWaterslide: segment?.type === 'waterslide',
+      turnWindow,
+    };
   }
 
   getEntitiesNear(zMin: number, zMax: number): TrackEntity[] {

@@ -295,17 +295,32 @@ export class Game {
     let speed = runSpeed(this.distance) * def.speedBonus;
     if (this.equip.isBoostActive()) speed *= 1.45;
 
-    const { wallBump } = this.player.handleInput(this.input);
-    if (wallBump) {
+    const { wallBump, turnedLeft, turnedRight } = this.player.handleInput(this.input);
+    let turnCleared = false;
+    if (turnedLeft) turnCleared = this.track.registerTurnInput('left') || turnCleared;
+    if (turnedRight) turnCleared = this.track.registerTurnInput('right') || turnCleared;
+    // Edge bump while satisfying a curve swipe does not stack a second catch-up
+    if (wallBump && !turnCleared) {
       this.chase.forceCatchUp();
     }
 
+    const trackInfo = this.track.update(dt, speed, this.distance);
+    const seg = trackInfo.segment;
+
+    this.player.setFloorY(trackInfo.floorY);
+    this.player.onWaterslide = trackInfo.onWaterslide;
+    this.player.onRamp = trackInfo.onRamp;
+
     this.player.update(dt, this.input.strafeAxis());
 
-    const seg = this.track.update(dt, speed, this.distance);
+    if (trackInfo.turnMiss) {
+      // Missed curve swipe → wall bump / catch-up
+      this.chase.forceCatchUp();
+      this.player.invuln = Math.max(this.player.invuln, 0.35);
+    }
+
     if (seg) {
       this.player.setLanesAvailable(seg.lanes);
-      this.player.onWaterslide = seg.type === 'waterslide';
       // fall off narrow
       const half = (seg.lanes * LANE_WIDTH) / 2 + 0.15;
       if (Math.abs(this.player.x) > half + 0.55) {
@@ -319,15 +334,16 @@ export class Game {
     this.stats.distance = this.distance;
     this.stats.score = this.score;
 
-    this.chase.update(dt, this.player.x);
+    this.chase.update(dt, this.player.x, trackInfo.floorY);
 
     this.resolveCollisions();
     this.updateHud();
 
-    // camera follow
+    // camera follow floor height + player
+    const camTargetY = 4.2 + trackInfo.floorY + this.player.y * 0.05;
     this.camera.position.x += (this.player.x * 0.35 - this.camera.position.x) * 0.08;
-    this.camera.position.y = 4.2 + this.player.y * 0.2;
-    this.camera.lookAt(this.player.x * 0.5, 1.2 + this.player.y, 8);
+    this.camera.position.y += (camTargetY - this.camera.position.y) * 0.12;
+    this.camera.lookAt(this.player.x * 0.5, 1.2 + trackInfo.floorY, 8);
   }
 
   private updateHud(): void {

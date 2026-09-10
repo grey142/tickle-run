@@ -25,6 +25,19 @@ export type EquipmentKind = 'shield' | 'magnet' | 'boost';
 
 export type LaneCount = 1 | 2 | 3;
 
+/** Vertical cave tier the track is on */
+export type CaveLevel = 'upper' | 'middle' | 'lower';
+
+/** Absolute floor Y for each cave level (middle ≈ 0) */
+export const LEVEL_FLOOR_Y: Record<CaveLevel, number> = {
+  upper: 2.4,
+  middle: 0,
+  lower: -2.0,
+};
+
+export const LEVEL_ORDER: CaveLevel[] = ['lower', 'middle', 'upper'];
+
+
 export type SegmentType =
   | 'straight'
   | 'rampUp'

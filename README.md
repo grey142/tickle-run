@@ -55,6 +55,21 @@ Jump and slide each last about **1 action beat** (~0.55s). You cannot jump on wa
 
 Collect red **feather gems**, clothing restores, mega clothing, green **escape gem** (revive once), and mega gems (+200).
 
+
+## Maze
+
+Never-ending **3-level cave**: **upper** / **middle** / **lower**, linked by transitions (no dead-end stop walls).
+
+| Feature | Behavior |
+|---------|----------|
+| **Levels** | Upper is brighter with hanging roots; middle is the standard tunnel; lower is darker and wet. Scenery (materials, props) changes with the level you are on. |
+| **Floor height** | Continuous `floorY` along the track. Middle ≈ 0; upper higher; lower lower. The runner’s Y follows the floor underfoot. |
+| **Ramps up** | Inclined segments raise `floorY` over their length. After a ramp you stay on the new level until the next transition. |
+| **Waterslides** | Inclined down; forced slide pose; **no jump**; slide-only obstacles/hazards. `floorY` drops over the segment, then persists on the lower level. |
+| **Curves** | `curveLeft` / `curveRight` bend the path with angled walls and floor chevrons. Swipe/press **left** or **right** in the turn window. Miss → wall bump / monster catch-up. |
+| **Narrow lanes** | 1–2 lane stretches still work; gems only on remaining lanes; falling off the floor is still game over. |
+| **Sequencing** | Prefers a stretch on one level, then a ramp or slide to change. Difficulty (narrows, curves, obstacles) ramps with distance. Spawn buffer ahead; cull behind. |
+
 ## Store
 
 Between runs, spend gems on **Shield**, **Gem Magnet**, **Boost**, **Escape Gem**, and unlock **adventurers**.  

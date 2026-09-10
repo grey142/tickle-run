@@ -289,68 +289,260 @@ export function makePickupMesh(kind: string): THREE.Group {
   return g;
 }
 
+export type CaveLevelVisual = 'upper' | 'middle' | 'lower';
+
+interface LevelPalette {
+  floor: number;
+  wall: number;
+  ceil: number;
+  accent: number;
+  accentEmissive: number;
+  fogHint: number;
+}
+
+const LEVEL_PALETTES: Record<CaveLevelVisual, LevelPalette> = {
+  upper: {
+    floor: 0x8d6e63,
+    wall: 0x5c6b7a,
+    ceil: 0x4a5568,
+    accent: 0x81c784,
+    accentEmissive: 0x2e7d32,
+    fogHint: 0xc8e6c9,
+  },
+  middle: {
+    floor: 0x6c584c,
+    wall: 0x3d405b,
+    ceil: 0x2b2d42,
+    accent: 0x9b5de5,
+    accentEmissive: 0x5a2d8a,
+    fogHint: 0x1a1a2e,
+  },
+  lower: {
+    floor: 0x2d3436,
+    wall: 0x1e272e,
+    ceil: 0x0f1419,
+    accent: 0x48cae4,
+    accentEmissive: 0x0077b6,
+    fogHint: 0x0a1628,
+  },
+};
+
 export function makeCaveSegment(
   length: number,
   lanes: number,
   type: string,
-  seed: number
+  seed: number,
+  level: CaveLevelVisual = 'middle',
+  floorYStart = 0,
+  floorYEnd = 0
 ): THREE.Group {
   const g = new THREE.Group();
+  const pal = LEVEL_PALETTES[level] ?? LEVEL_PALETTES.middle;
   const floorW = lanes * 2.2 + 0.4;
+  const dy = floorYEnd - floorYStart;
+  const incline = Math.atan2(-dy, length); // rotation.x so +z end is at floorYEnd relative to start
+
+  const isSlide = type === 'waterslide';
+  const isRamp = type === 'rampUp';
+  const isCurveL = type === 'curveLeft';
+  const isCurveR = type === 'curveRight';
+  const turnSign = isCurveL ? -1 : isCurveR ? 1 : 0;
+
   const floorMat = new THREE.MeshStandardMaterial({
-    color: type === 'waterslide' ? 0x48cae4 : 0x6c584c,
-    roughness: type === 'waterslide' ? 0.25 : 0.9,
-    metalness: type === 'waterslide' ? 0.3 : 0,
+    color: isSlide ? 0x48cae4 : pal.floor,
+    roughness: isSlide ? 0.22 : isRamp ? 0.75 : level === 'lower' ? 0.55 : 0.9,
+    metalness: isSlide ? 0.35 : level === 'lower' ? 0.15 : 0,
   });
-  const floor = new THREE.Mesh(new THREE.BoxGeometry(floorW, 0.25, length), floorMat);
-  floor.position.y = -0.125;
-  floor.receiveShadow = true;
-  g.add(floor);
 
-  // Side walls / cave
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x3d405b, roughness: 0.95 });
+  // Build floor as several slabs so incline + lateral bend read clearly
+  const slices = Math.max(4, Math.floor(length / 4));
+  const sliceLen = length / slices;
+  for (let i = 0; i < slices; i++) {
+    const t0 = i / slices;
+    const t1 = (i + 1) / slices;
+    const y0 = floorYStart + dy * t0;
+    const y1 = floorYStart + dy * t1;
+    const yMid = (y0 + y1) / 2;
+    const zMid = -length / 2 + (i + 0.5) * sliceLen;
+    // Lateral bend for curves: path drifts toward the turn direction through the segment
+    const xBend = turnSign * 1.6 * Math.sin(t0 * Math.PI);
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(floorW, 0.28, sliceLen + 0.05), floorMat);
+    slab.position.set(xBend, yMid - 0.14, zMid);
+    if (isRamp || isSlide) {
+      slab.rotation.x = incline;
+    }
+    if (turnSign) {
+      slab.rotation.y = -turnSign * 0.18;
+    }
+    slab.receiveShadow = true;
+    g.add(slab);
+  }
+
+  // Side walls / cave — angled on curves so the turn is readable ahead
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: pal.wall,
+    roughness: level === 'lower' ? 0.7 : 0.95,
+    metalness: level === 'lower' ? 0.1 : 0,
+  });
   const wallH = 4.5;
-  const left = new THREE.Mesh(new THREE.BoxGeometry(0.4, wallH, length), wallMat);
-  left.position.set(-floorW / 2 - 0.15, wallH / 2 - 0.2, 0);
-  const right = new THREE.Mesh(new THREE.BoxGeometry(0.4, wallH, length), wallMat);
-  right.position.set(floorW / 2 + 0.15, wallH / 2 - 0.2, 0);
-  g.add(left, right);
+  for (const side of [-1, 1] as const) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(0.45, wallH, length), wallMat);
+    const baseX = side * (floorW / 2 + 0.2);
+    // Outer wall of a curve bulges; inner wall tucks in
+    const bulge = turnSign ? side * turnSign * 0.55 : 0;
+    wall.position.set(baseX + bulge * 0.5, wallH / 2 - 0.2 + (floorYStart + floorYEnd) / 2, 0);
+    if (turnSign) {
+      wall.rotation.y = -turnSign * 0.22 * side * (side === turnSign ? 1.2 : 0.6);
+    }
+    g.add(wall);
+  }
 
-  // Ceiling arches
-  const ceilMat = new THREE.MeshStandardMaterial({ color: 0x2b2d42, roughness: 1 });
-  const ceil = new THREE.Mesh(new THREE.BoxGeometry(floorW + 1.2, 0.3, length), ceilMat);
-  ceil.position.y = wallH - 0.1;
+  // Optional fake junction spur (visual only — never a hard stop)
+  if ((seed % 7 === 0) && type === 'straight' && lanes >= 2) {
+    const spurSide = seed % 2 === 0 ? -1 : 1;
+    const spurMat = new THREE.MeshStandardMaterial({ color: pal.wall, roughness: 1 });
+    const spur = new THREE.Mesh(new THREE.BoxGeometry(floorW * 0.55, 0.22, 4), floorMat);
+    spur.position.set(spurSide * (floorW * 0.65), floorYStart - 0.05, length * 0.15);
+    spur.rotation.y = spurSide * 0.55;
+    g.add(spur);
+    const block = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.2, 3.2), spurMat);
+    block.position.set(spurSide * (floorW * 0.95), floorYStart + 1.0, length * 0.15);
+    g.add(block);
+  }
+
+  // Ceiling
+  const ceilMat = new THREE.MeshStandardMaterial({ color: pal.ceil, roughness: 1 });
+  const ceil = new THREE.Mesh(new THREE.BoxGeometry(floorW + 1.4, 0.3, length), ceilMat);
+  ceil.position.y = wallH - 0.1 + (floorYStart + floorYEnd) / 2;
   g.add(ceil);
 
-  // Decorative crystals / moss by seed
-  const crystalMat = new THREE.MeshStandardMaterial({
-    color: seed % 2 === 0 ? 0x9b5de5 : 0x00bbf9,
-    emissive: seed % 2 === 0 ? 0x5a2d8a : 0x006688,
-    emissiveIntensity: 0.35,
+  // Level-specific props
+  const accentMat = new THREE.MeshStandardMaterial({
+    color: pal.accent,
+    emissive: pal.accentEmissive,
+    emissiveIntensity: level === 'upper' ? 0.25 : level === 'lower' ? 0.45 : 0.35,
   });
-  for (let i = 0; i < 3; i++) {
-    const c = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.45, 5), crystalMat);
-    const side = i % 2 === 0 ? -1 : 1;
-    c.position.set(side * (floorW / 2 - 0.3), 0.3 + (seed + i) % 3 * 0.4, -length / 2 + 2 + i * (length / 4));
-    g.add(c);
+
+  if (level === 'upper') {
+    // Brighter roots hanging from ceiling
+    const rootMat = new THREE.MeshStandardMaterial({ color: 0x6d4c41, roughness: 0.85 });
+    for (let i = 0; i < 4; i++) {
+      const root = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.08, 1.2 + (seed + i) % 3 * 0.3, 5), rootMat);
+      const side = i % 2 === 0 ? -1 : 1;
+      root.position.set(
+        side * (floorW / 2 - 0.35),
+        wallH - 0.9 + floorYStart,
+        -length / 2 + 2 + i * (length / 5)
+      );
+      root.rotation.z = side * 0.25;
+      g.add(root);
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 6), accentMat);
+      leaf.position.copy(root.position);
+      leaf.position.y -= 0.55;
+      g.add(leaf);
+    }
+  } else if (level === 'lower') {
+    // Wet puddles + drips
+    const wetMat = new THREE.MeshStandardMaterial({
+      color: 0x14746f,
+      roughness: 0.15,
+      metalness: 0.4,
+      transparent: true,
+      opacity: 0.7,
+    });
+    for (let i = 0; i < 3; i++) {
+      const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.35 + (seed + i) % 3 * 0.1, 10), wetMat);
+      puddle.rotation.x = -Math.PI / 2;
+      puddle.position.set(
+        ((i % 3) - 1) * 0.7,
+        Math.min(floorYStart, floorYEnd) + 0.02,
+        -length / 2 + 3 + i * (length / 4)
+      );
+      g.add(puddle);
+    }
+    for (let i = 0; i < 3; i++) {
+      const drip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.35, 5), accentMat);
+      drip.position.set(
+        (i % 2 === 0 ? -1 : 1) * (floorW / 2 - 0.4),
+        wallH - 1.2 + floorYStart,
+        -length / 2 + 4 + i * (length / 4)
+      );
+      g.add(drip);
+    }
+  } else {
+    // Middle: crystals / moss
+    for (let i = 0; i < 3; i++) {
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.45, 5), accentMat);
+      const side = i % 2 === 0 ? -1 : 1;
+      c.position.set(
+        side * (floorW / 2 - 0.3),
+        floorYStart + 0.3 + ((seed + i) % 3) * 0.4,
+        -length / 2 + 2 + i * (length / 4)
+      );
+      g.add(c);
+    }
   }
 
-  if (type === 'rampUp') {
-    floor.rotation.x = -0.12;
-    floor.position.y += 0.4;
-  }
-  if (type === 'waterslide') {
-    floor.rotation.x = 0.1;
-    const railMat = new THREE.MeshStandardMaterial({ color: 0x0077b6, roughness: 0.4 });
-    for (const sx of [-floorW / 2 + 0.15, floorW / 2 - 0.15]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.35, length), railMat);
-      rail.position.set(sx, 0.2, 0);
+  if (isRamp) {
+    // Ramp side rails
+    const railMat = new THREE.MeshStandardMaterial({ color: 0xa1887f, roughness: 0.7 });
+    for (const sx of [-floorW / 2 + 0.12, floorW / 2 - 0.12]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.28, length), railMat);
+      rail.position.set(sx, (floorYStart + floorYEnd) / 2 + 0.15, 0);
+      rail.rotation.x = incline;
       g.add(rail);
+    }
+  }
+
+  if (isSlide) {
+    const railMat = new THREE.MeshStandardMaterial({ color: 0x0077b6, roughness: 0.35, metalness: 0.4 });
+    for (const sx of [-floorW / 2 + 0.15, floorW / 2 - 0.15]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.4, length), railMat);
+      rail.position.set(sx, (floorYStart + floorYEnd) / 2 + 0.25, 0);
+      rail.rotation.x = incline;
+      g.add(rail);
+    }
+    // Splash streaks
+    const splash = new THREE.Mesh(
+      new THREE.BoxGeometry(floorW * 0.7, 0.05, length * 0.9),
+      new THREE.MeshStandardMaterial({
+        color: 0x90e0ef,
+        transparent: true,
+        opacity: 0.35,
+        roughness: 0.1,
+      })
+    );
+    splash.position.set(0, (floorYStart + floorYEnd) / 2 + 0.05, 0);
+    splash.rotation.x = incline;
+    g.add(splash);
+  }
+
+  // Turn chevrons painted on floor for readability
+  if (turnSign) {
+    const chevMat = new THREE.MeshStandardMaterial({
+      color: 0xffe066,
+      emissive: 0xaa8800,
+      emissiveIntensity: 0.4,
+    });
+    for (let i = 0; i < 3; i++) {
+      const chev = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.7, 3), chevMat);
+      const t = 0.25 + i * 0.2;
+      chev.rotation.x = -Math.PI / 2;
+      chev.rotation.z = turnSign > 0 ? -Math.PI / 2 : Math.PI / 2;
+      chev.position.set(
+        turnSign * 0.4 * Math.sin(t * Math.PI),
+        floorYStart + dy * t + 0.05,
+        -length / 2 + t * length
+      );
+      g.add(chev);
     }
   }
 
   g.userData.lanes = lanes;
   g.userData.length = length;
   g.userData.type = type;
+  g.userData.level = level;
+  g.userData.floorYStart = floorYStart;
+  g.userData.floorYEnd = floorYEnd;
   return g;
 }

@@ -35,7 +35,7 @@ export class ChaseSystem {
     return this.state === 'caughtUp';
   }
 
-  update(dt: number, playerX: number): void {
+  update(dt: number, playerX: number, floorY = 0): void {
     this.bob += dt * 3;
     if (this.state === 'caughtUp') {
       this.caughtUpTimer -= dt;
@@ -49,7 +49,7 @@ export class ChaseSystem {
     }
     this.mesh.position.x += (playerX - this.mesh.position.x) * Math.min(1, dt * 4);
     this.mesh.position.z = this.zOffset;
-    this.mesh.position.y = Math.sin(this.bob) * 0.15;
+    this.mesh.position.y = floorY + Math.sin(this.bob) * 0.15;
     this.mesh.rotation.y = Math.PI; // face player (player looks down -Z? we run +Z visually toward camera... actually track moves toward player)
     // Player stays at z=0, world scrolls. Monster behind = negative Z.
     this.mesh.rotation.y = 0;
