@@ -93,8 +93,8 @@ export interface RunStats {
 
 export const LANE_WIDTH = 2.2;
 export const LANE_COUNT_DEFAULT = 3;
-export const JUMP_DURATION = 0.825; // keep jump distance after 4× slowdown
-export const SLIDE_DURATION = 1.1; // keep slide distance after 4× slowdown
+export const JUMP_DURATION = 0.55;
+export const SLIDE_DURATION = 0.55;
 export const JUMP_HEIGHT = 2.0;
 export const CAUGHT_UP_DURATION = 60;
 export const COUNTDOWN_DURATION = 3;
@@ -103,7 +103,7 @@ export const MAGNET_COOLDOWN = 30;
 export const MAGNET_DURATION = 8;
 export const BOOST_COOLDOWN = 35;
 export const BOOST_DURATION = 5;
-export const STEPS_PER_SEC = 12; // ~4× slower than prior (48→12)
+export const STEPS_PER_SEC = 4; // original run speed
 
 export function metersPerStep(distance: number): number {
   if (distance >= 1000) return 2.11;

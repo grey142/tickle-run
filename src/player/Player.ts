@@ -68,8 +68,21 @@ export class Player {
   }
 
   setLanesAvailable(n: 1 | 2 | 3): void {
+    // Only remap when width changes — keeping lane index across 3→2
+    // used to shove center (lane 1) onto the right lane.
+    if (n === this.lanesAvailable) return;
     this.lanesAvailable = n;
-    if (this.lane > n - 1) this.lane = n - 1;
+    let best = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < n; i++) {
+      const ox = (i - (n - 1) / 2) * LANE_WIDTH;
+      const d = Math.abs(this.x - ox);
+      if (d < bestDist) {
+        bestDist = d;
+        best = i;
+      }
+    }
+    this.lane = best;
     this.syncLaneTarget();
   }
 
