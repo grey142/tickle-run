@@ -72,16 +72,17 @@ export class Game {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x1a1a2e);
-    this.scene.fog = new THREE.Fog(0x1a1a2e, 28, 85);
+    this.scene.fog = new THREE.Fog(0x1a1a2e, 14, 48);
 
     this.camera = new THREE.PerspectiveCamera(
-      60,
+      58,
       container.clientWidth / container.clientHeight,
       0.1,
-      200
+      90
     );
-    this.camera.position.set(0, 4.2, -7.5);
-    this.camera.lookAt(0, 1.2, 6);
+    // Shoulder-height chase cam — look down the tunnel, not up into other levels
+    this.camera.position.set(0, 2.35, -6.2);
+    this.camera.lookAt(0, 1.0, 12);
 
     const hemi = new THREE.HemisphereLight(0xbde0fe, 0x3d405b, 0.85);
     this.scene.add(hemi);
@@ -363,11 +364,12 @@ export class Game {
     this.resolveCollisions();
     this.updateHud();
 
-    // camera follow floor height + player
-    const camTargetY = 4.2 + trackInfo.floorY + this.player.y * 0.05;
-    this.camera.position.x += (this.player.x * 0.35 - this.camera.position.x) * 0.08;
-    this.camera.position.y += (camTargetY - this.camera.position.y) * 0.12;
-    this.camera.lookAt(this.player.x * 0.5, 1.2 + trackInfo.floorY, 8);
+    // camera follow floor — keep view on the path ahead (not upper decks)
+    const camTargetY = 2.35 + trackInfo.floorY + (this.player.y - trackInfo.floorY) * 0.15;
+    this.camera.position.x += (this.player.x * 0.28 - this.camera.position.x) * 0.1;
+    this.camera.position.y += (camTargetY - this.camera.position.y) * 0.14;
+    this.camera.position.z = -6.2;
+    this.camera.lookAt(this.player.x * 0.4, trackInfo.floorY + 0.95, 14);
   }
 
   private updateHud(): void {

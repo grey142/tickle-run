@@ -245,11 +245,12 @@ export class Input {
   }
 
   wantsLeft(): boolean {
-    return this.just('arrowleft') || this.just('a') || this.swipeLeft;
+    // Swipes are mirrored vs screen (camera behind runner); keys stay natural
+    return this.just('arrowleft') || this.just('a') || this.swipeRight;
   }
 
   wantsRight(): boolean {
-    return this.just('arrowright') || this.just('d') || this.swipeRight;
+    return this.just('arrowright') || this.just('d') || this.swipeLeft;
   }
 
   wantsPause(): boolean {
@@ -265,7 +266,7 @@ export class Input {
     if (Math.abs(tilt) > 0.01) {
       v += tilt;
     } else {
-      v += Math.max(-1, Math.min(1, this.dragX));
+      v += Math.max(-1, Math.min(1, -this.dragX)); // match swipe mirror
     }
     return Math.max(-1, Math.min(1, v));
   }

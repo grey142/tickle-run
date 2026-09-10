@@ -449,6 +449,21 @@ export class TrackGenerator {
     const segment = this.segments.find((s) => s.zStart <= 0 && s.zStart + s.length > 0) ?? null;
     const floorY = this.getFloorYAt(0);
 
+    // Only show the path band ahead — hide other levels that sit above/below and block the view
+    for (const s of this.segments) {
+      const lo = Math.min(s.floorYStart, s.floorYEnd);
+      const hi = Math.max(s.floorYStart, s.floorYEnd);
+      const transition = s.type === 'rampUp' || s.type === 'waterslide';
+      const entirelyAbove = lo > floorY + 1.15;
+      const entirelyBelow = hi < floorY - 1.5;
+      s.mesh.visible = transition || !(entirelyAbove || entirelyBelow);
+    }
+    for (const e of this.entities) {
+      const entirelyAbove = e.floorY > floorY + 1.15;
+      const entirelyBelow = e.floorY < floorY - 1.5;
+      e.mesh.visible = !(entirelyAbove || entirelyBelow) && !e.hit;
+    }
+
     let turnMiss = false;
     let turnWindow: 'left' | 'right' | null = null;
     if (segment?.turnRequired) {
