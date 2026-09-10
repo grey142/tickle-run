@@ -475,7 +475,11 @@ export class Game {
         if (dx > pHalfX + halfX || Math.abs(hitZ) > pHalfZ + halfZ) continue;
 
         if (tdef.instantGameOver) {
-          // Long black pit — any touch is instant game over (too long to jump clear)
+          // Black pit: paper-thin ground hitbox — only if feet touch the pit surface
+          const feet = hb.y;
+          const floor = e.floorY ?? 0;
+          const pitTop = floor + Math.max(0.06, tdef.height * 0.15);
+          if (hb.jumping || feet > pitTop + 0.02) continue; // airborne over the void = safe
           e.hit = true;
           this.triggerBlackPit();
           return;
