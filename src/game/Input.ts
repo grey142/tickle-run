@@ -19,8 +19,9 @@ export class Input {
   private tiltAxis: 'gamma' | 'beta' = 'gamma';
   tiltPermission: TiltPermissionState = 'unknown';
 
-  private static readonly TILT_DEADZONE = 0.12;
-  private static readonly TILT_SCALE = 18; // degrees → full axis
+  private static readonly TILT_DEADZONE = 0.1;
+  private static readonly TILT_SCALE = 28; // degrees → full axis (gentler)
+  private tiltSmooth = 0;
 
   constructor(target: HTMLElement | Window = window) {
     const el = target as Window;
@@ -103,17 +104,23 @@ export class Input {
   calibrateTilt(): void {
     this.tiltNeutral = this.tiltRaw;
     this.tiltCalibrated = true;
+    this.tiltSmooth = 0;
   }
 
   private tiltAxisValue(): number {
     if (!this.tiltEnabled || this.tiltPermission !== 'granted') return 0;
     const delta = this.tiltRaw - this.tiltNeutral;
     let v = delta / Input.TILT_SCALE;
-    if (Math.abs(v) < Input.TILT_DEADZONE) return 0;
-    // Remap so deadzone doesn't create a jump
-    const sign = Math.sign(v);
-    v = sign * ((Math.abs(v) - Input.TILT_DEADZONE) / (1 - Input.TILT_DEADZONE));
-    return Math.max(-1, Math.min(1, v));
+    if (Math.abs(v) < Input.TILT_DEADZONE) v = 0;
+    else {
+      const sign = Math.sign(v);
+      v = sign * ((Math.abs(v) - Input.TILT_DEADZONE) / (1 - Input.TILT_DEADZONE));
+    }
+    v = Math.max(-1, Math.min(1, v));
+    // Low-pass so the axis tracks phone motion instead of jumping
+    this.tiltSmooth += (v - this.tiltSmooth) * 0.12;
+    if (Math.abs(this.tiltSmooth) < 0.02) this.tiltSmooth = 0;
+    return this.tiltSmooth;
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
