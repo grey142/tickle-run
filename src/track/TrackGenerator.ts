@@ -133,8 +133,7 @@ export class TrackGenerator {
 
     const r = this.rng();
     // Narrow sections more common with difficulty
-    // Never 1-lane hallways — only drop one side (narrow2)
-    if (r < 0.16 + d * 0.1) return 'narrow2';
+    // No lane narrowing / hallways — full 3-lane path always
     // Curves — more with distance
     if (r < 0.28 + d * 0.08) return this.rng() < 0.5 ? 'curveLeft' : 'curveRight';
     // Occasional early transition mid-stretch (rarer)
@@ -148,22 +147,15 @@ export class TrackGenerator {
     return 'straight';
   }
 
-  private lanesFor(type: SegmentType): LaneCount {
-    if (type === 'narrow2') return 2;
-    if (type === 'narrow1') return 2; // legacy: treat as side-narrow, never 1-lane
-    if (type === 'waterslide') return 3; // full track width
+  private lanesFor(_type: SegmentType): LaneCount {
+    // Always full track — black pit traps replace old narrow sections
     return 3;
   }
 
   spawnSegment(): void {
     const type = this.pickSegmentType();
     const lanes = this.lanesFor(type);
-    const narrowBias: -1 | 0 | 1 =
-      type === 'narrow2' || type === 'narrow1'
-        ? this.rng() < 0.5
-          ? -1
-          : 1
-        : 0;
+    const narrowBias: -1 | 0 | 1 = 0;
     const length =
       type === 'rampUp' || type === 'waterslide'
         ? 22 + Math.floor(this.rng() * 8)
@@ -313,11 +305,22 @@ export class TrackGenerator {
       }
     }
 
-    // Traps (rarer; not on steep transitions)
-    if (!onSlide && type !== 'rampUp' && this.rng() < 0.12 + d * 0.15) {
-      const def = TRAP_LIST[Math.floor(this.rng() * TRAP_LIST.length)];
+    // Traps (rarer; not on steep transitions). Black pits replace old narrow halls.
+    const wantPit = !onSlide && type === 'straight' && this.rng() < 0.1 + d * 0.12;
+    const wantTrap = !onSlide && type !== 'rampUp' && this.rng() < 0.12 + d * 0.15;
+    if (wantPit || wantTrap) {
+      let def = wantPit
+        ? TRAP_LIST.find((t) => t.id === 'blackPit')!
+        : TRAP_LIST[Math.floor(this.rng() * TRAP_LIST.length)];
+      // Prefer not to roll blackPit twice from random unless wantPit
+      if (!wantPit && def.id === 'blackPit' && this.rng() < 0.7) {
+        def = TRAP_LIST.filter((t) => t.id !== 'blackPit')[
+          Math.floor(this.rng() * (TRAP_LIST.length - 1))
+        ];
+      }
       const lane = Math.floor(this.rng() * lanes);
-      const z = zStart + 8 + this.rng() * Math.max(2, length - 12);
+      const depth = def.depth ?? 0.7;
+      const z = zStart + 6 + depth / 2 + this.rng() * Math.max(1, length - 12 - depth);
       const fy = floorAt(z);
       const mesh = makeTrapMesh(def.id as TrapKind);
       mesh.position.set(this.laneX(lane, lanes, xBias), fy, z);

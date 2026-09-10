@@ -225,7 +225,46 @@ export function makeTrapMesh(kind: TrapKind): THREE.Group {
     emissiveIntensity: 0.25,
   });
 
-  if (kind === 'giggleGas') {
+  if (kind === 'blackPit') {
+    // Long black void in the floor — no scale shrink; depth is the danger
+    const holeMat = new THREE.MeshStandardMaterial({
+      color: 0x020205,
+      roughness: 1,
+      metalness: 0,
+      emissive: 0x110022,
+      emissiveIntensity: 0.15,
+    });
+    const rimMat = new THREE.MeshStandardMaterial({
+      color: 0x1a1028,
+      roughness: 0.9,
+      emissive: 0x4a0080,
+      emissiveIntensity: 0.2,
+    });
+    const hole = new THREE.Mesh(
+      new THREE.BoxGeometry(def.footprint, 0.12, def.depth),
+      holeMat
+    );
+    hole.position.y = -0.04;
+    g.add(hole);
+    // Inner darker well
+    const well = new THREE.Mesh(
+      new THREE.BoxGeometry(def.footprint * 0.85, 1.2, def.depth * 0.9),
+      holeMat
+    );
+    well.position.y = -0.65;
+    g.add(well);
+    // Rim
+    const rim = new THREE.Mesh(
+      new THREE.BoxGeometry(def.footprint + 0.15, 0.06, def.depth + 0.15),
+      rimMat
+    );
+    rim.position.y = 0.01;
+    g.add(rim);
+    g.userData.kind = kind;
+    g.userData.footprint = def.footprint;
+    g.userData.depth = def.depth;
+    return g;
+  } else if (kind === 'giggleGas') {
     for (let i = 0; i < 4; i++) {
       const puff = new THREE.Mesh(new THREE.SphereGeometry(0.35 + i * 0.05, 8, 8), mat);
       puff.position.set((i % 2) * 0.4 - 0.2, 0.4 + i * 0.25, (i > 1 ? 0.2 : -0.1));
@@ -247,6 +286,7 @@ export function makeTrapMesh(kind: TrapKind): THREE.Group {
 
   g.userData.kind = kind;
   g.userData.footprint = def.footprint;
+  g.userData.depth = def.depth;
   g.scale.setScalar(0.7);
   return g;
 }

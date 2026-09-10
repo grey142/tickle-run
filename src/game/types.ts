@@ -12,7 +12,7 @@ export type HazardKind =
   | 'slideRock'
   | 'slideBranch';
 
-export type TrapKind = 'featherTrap' | 'ticklePit' | 'giggleGas' | 'stickyMoss';
+export type TrapKind = 'featherTrap' | 'ticklePit' | 'giggleGas' | 'stickyMoss' | 'blackPit';
 
 export type PickupKind =
   | 'featherGem'

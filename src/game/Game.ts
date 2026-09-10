@@ -469,10 +469,17 @@ export class Game {
         const tdef = TRAPS[e.subKind as TrapKind];
         if (!tdef) continue;
         const halfX = tdef.footprint * 0.5;
-        const halfZ = 0.35; // trap sprite depth
+        const halfZ = Math.max(0.2, (tdef.depth ?? 0.7) * 0.5);
         // Same back-shift as obstacles
         const hitZ = e.z + halfZ;
         if (dx > pHalfX + halfX || Math.abs(hitZ) > pHalfZ + halfZ) continue;
+
+        if (tdef.instantGameOver) {
+          // Long black pit — any touch is instant game over (too long to jump clear)
+          e.hit = true;
+          this.triggerBlackPit();
+          return;
+        }
 
         // Ground traps: hit height is 25% of visual height (75% reduction) so jumps clear
         const hitHeight = tdef.ground ? tdef.height * 0.25 : tdef.height;
@@ -604,6 +611,19 @@ export class Game {
           this.endRun(false);
         }
       }
+    );
+  }
+
+  private triggerBlackPit(): void {
+    this.playCinematic(
+      {
+        kind: 'fallOff',
+        clothing: this.player.clothing,
+        trapKind: 'blackPit',
+        message: 'You fell into the black tickle pit — no escape!',
+        duration: 2.8,
+      },
+      () => this.endRun(false)
     );
   }
 
