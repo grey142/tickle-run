@@ -35,6 +35,8 @@ export interface Segment {
   turnCleared: boolean;
   /** Miss already penalized */
   turnMissed: boolean;
+  /** -1 = missing left (play right two), +1 = missing right, 0 = centered */
+  narrowBias: -1 | 0 | 1;
 }
 
 export interface TrackUpdateResult {
@@ -45,6 +47,7 @@ export interface TrackUpdateResult {
   onRamp: boolean;
   onWaterslide: boolean;
   turnWindow: 'left' | 'right' | null;
+  narrowBias: -1 | 0 | 1;
 }
 
 function rand(seed: number): () => number {
@@ -130,8 +133,8 @@ export class TrackGenerator {
 
     const r = this.rng();
     // Narrow sections more common with difficulty
-    if (r < 0.07 + d * 0.06) return 'narrow1';
-    if (r < 0.16 + d * 0.08) return 'narrow2';
+    // Never 1-lane hallways — only drop one side (narrow2)
+    if (r < 0.16 + d * 0.1) return 'narrow2';
     // Curves — more with distance
     if (r < 0.28 + d * 0.08) return this.rng() < 0.5 ? 'curveLeft' : 'curveRight';
     // Occasional early transition mid-stretch (rarer)
@@ -146,8 +149,8 @@ export class TrackGenerator {
   }
 
   private lanesFor(type: SegmentType): LaneCount {
-    if (type === 'narrow1') return 1;
     if (type === 'narrow2') return 2;
+    if (type === 'narrow1') return 2; // legacy: treat as side-narrow, never 1-lane
     if (type === 'waterslide') return 3; // full track width
     return 3;
   }
@@ -155,6 +158,12 @@ export class TrackGenerator {
   spawnSegment(): void {
     const type = this.pickSegmentType();
     const lanes = this.lanesFor(type);
+    const narrowBias: -1 | 0 | 1 =
+      type === 'narrow2' || type === 'narrow1'
+        ? this.rng() < 0.5
+          ? -1
+          : 1
+        : 0;
     const length =
       type === 'rampUp' || type === 'waterslide'
         ? 22 + Math.floor(this.rng() * 8)
@@ -206,6 +215,7 @@ export class TrackGenerator {
       turnRequired,
       turnCleared: turnRequired === null,
       turnMissed: false,
+      narrowBias,
     };
     this.segments.push(seg);
     this.populateSegment(seg);
@@ -232,13 +242,14 @@ export class TrackGenerator {
     this.segmentIndex++;
   }
 
-  private laneX(lane: number, lanes: number): number {
-    return (lane - (lanes - 1) / 2) * LANE_WIDTH;
+  private laneX(lane: number, lanes: number, bias = 0): number {
+    return (lane - (lanes - 1) / 2) * LANE_WIDTH + bias;
   }
 
   private populateSegment(seg: Segment): void {
     const d = this.difficulty();
-    const { type, lanes, length, zStart, floorYStart, floorYEnd } = seg;
+    const { type, lanes, length, zStart, floorYStart, floorYEnd, narrowBias } = seg;
+    const xBias = narrowBias * (LANE_WIDTH / 2);
     const onSlide = type === 'waterslide';
 
     const floorAt = (z: number) => {
@@ -258,7 +269,7 @@ export class TrackGenerator {
         const z = zStart + 6 + this.rng() * Math.max(2, length - 10);
         const fy = floorAt(z);
         const mesh = makeObstacleMesh(def.id as HazardKind);
-        mesh.position.set(this.laneX(lane, lanes), fy, z);
+        mesh.position.set(this.laneX(lane, lanes, xBias), fy, z);
         this.root.add(mesh);
         this.entities.push({
           mesh,
@@ -285,7 +296,7 @@ export class TrackGenerator {
         const z = zStart + length - 5;
         const fy = floorAt(z);
         const mesh = makeObstacleMesh(def.id as HazardKind);
-        mesh.position.set(this.laneX(lane, lanes), fy, z);
+        mesh.position.set(this.laneX(lane, lanes, xBias), fy, z);
         this.root.add(mesh);
         this.entities.push({
           mesh,
@@ -309,7 +320,7 @@ export class TrackGenerator {
       const z = zStart + 8 + this.rng() * Math.max(2, length - 12);
       const fy = floorAt(z);
       const mesh = makeTrapMesh(def.id as TrapKind);
-      mesh.position.set(this.laneX(lane, lanes), fy, z);
+      mesh.position.set(this.laneX(lane, lanes, xBias), fy, z);
       this.root.add(mesh);
       this.entities.push({
         mesh,
@@ -332,7 +343,7 @@ export class TrackGenerator {
       for (let lane = 0; lane < lanes; lane++) {
         if (this.rng() < 0.55 + d * 0.2) {
           const mesh = makeFeatherGem();
-          mesh.position.set(this.laneX(lane, lanes), fy + 0.6, z);
+          mesh.position.set(this.laneX(lane, lanes, xBias), fy + 0.6, z);
           this.root.add(mesh);
           this.entities.push({
             mesh,
@@ -365,7 +376,7 @@ export class TrackGenerator {
       const z = zStart + length * 0.5;
       const fy = floorAt(z);
       const mesh = makePickupMesh(pick);
-      mesh.position.set(this.laneX(lane, lanes), fy + 0.7, z);
+      mesh.position.set(this.laneX(lane, lanes, xBias), fy + 0.7, z);
       this.root.add(mesh);
       this.entities.push({
         mesh,
@@ -485,6 +496,7 @@ export class TrackGenerator {
       onRamp: segment?.type === 'rampUp',
       onWaterslide: segment?.type === 'waterslide',
       turnWindow,
+      narrowBias: segment?.narrowBias ?? 0,
     };
   }
 

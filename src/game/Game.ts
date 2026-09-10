@@ -83,8 +83,8 @@ export class Game {
       90
     );
     // Shoulder-height chase cam — look down the tunnel, not up into other levels
-    this.camera.position.set(0, 2.35, -6.2);
-    this.camera.lookAt(0, 1.0, 12);
+    this.camera.position.set(0, 3.15, -9.5);
+    this.camera.lookAt(0, 1.15, 14);
 
     const hemi = new THREE.HemisphereLight(0x6a5acd, 0x1a1020, 0.45);
     this.scene.add(hemi);
@@ -339,7 +339,12 @@ export class Game {
     const seg = trackInfo.segment;
 
     this.player.setFloorY(trackInfo.floorY);
+    const wasOnSlide = this.player.onWaterslide;
     this.player.onWaterslide = trackInfo.onWaterslide;
+    if (wasOnSlide && !trackInfo.onWaterslide) {
+      // Leave waterslide: stand immediately, jumps allowed again
+      this.player.clearSlide();
+    }
     this.player.onRamp = trackInfo.onRamp;
 
     this.player.update(dt, this.input.strafeAxis());
@@ -351,10 +356,11 @@ export class Game {
     }
 
     if (seg) {
-      this.player.setLanesAvailable(seg.lanes);
+      this.player.setLanesAvailable(seg.lanes, (seg.narrowBias ?? 0) * (LANE_WIDTH / 2));
       // fall off narrow
-      const half = (seg.lanes * LANE_WIDTH) / 2 + 0.15;
-      if (Math.abs(this.player.x) > half + 0.55) {
+      const bias = (seg.narrowBias ?? 0) * (LANE_WIDTH / 2);
+      const half = ((seg.lanes - 1) / 2) * LANE_WIDTH + 0.55;
+      if (Math.abs(this.player.x - bias) > half) {
         this.triggerFallOff();
         return;
       }
@@ -370,12 +376,12 @@ export class Game {
     this.resolveCollisions();
     this.updateHud();
 
-    // camera follow floor — keep view on the path ahead (not upper decks)
-    const camTargetY = 2.35 + trackInfo.floorY + (this.player.y - trackInfo.floorY) * 0.15;
-    this.camera.position.x += (this.player.x * 0.28 - this.camera.position.x) * 0.1;
+    // Higher + farther chase cam
+    const camTargetY = 3.15 + trackInfo.floorY + (this.player.y - trackInfo.floorY) * 0.12;
+    this.camera.position.x += (this.player.x * 0.22 - this.camera.position.x) * 0.1;
     this.camera.position.y += (camTargetY - this.camera.position.y) * 0.14;
-    this.camera.position.z = -6.2;
-    this.camera.lookAt(this.player.x * 0.4, trackInfo.floorY + 0.95, 14);
+    this.camera.position.z = -9.5;
+    this.camera.lookAt(this.player.x * 0.35, trackInfo.floorY + 1.05, 16);
   }
 
   private updateHud(): void {

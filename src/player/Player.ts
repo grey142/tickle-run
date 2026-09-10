@@ -27,6 +27,8 @@ export class Player {
   targetLaneX = 0;
   onWaterslide = false;
   onRamp = false;
+  /** Shift lane centers when a side is missing (narrow2) */
+  laneBias = 0;
   invuln = 0;
   alive = true;
   private bob = 0;
@@ -63,15 +65,22 @@ export class Player {
   syncLaneTarget(): void {
     const count = this.lanesAvailable;
     this.lane = Math.max(0, Math.min(count - 1, this.lane));
-    const offset = (this.lane - (count - 1) / 2) * LANE_WIDTH;
+    const offset = (this.lane - (count - 1) / 2) * LANE_WIDTH + this.laneBias;
     this.targetLaneX = offset;
   }
 
-  setLanesAvailable(n: 1 | 2 | 3): void {
-    // Only remap when width changes — keeping lane index across 3→2
-    // used to shove center (lane 1) onto the right lane.
-    if (n === this.lanesAvailable) return;
+  /** End any slide pose immediately (e.g. leaving a waterslide). */
+  clearSlide(): void {
+    this.sliding = false;
+    this.slideT = 0;
+    this.poseY = 0;
+    this.mesh.scale.set(1, 1, 1);
+  }
+
+  setLanesAvailable(n: 1 | 2 | 3, laneBias = 0): void {
+    if (n === this.lanesAvailable && laneBias === this.laneBias) return;
     this.lanesAvailable = n;
+    this.laneBias = laneBias;
     let best = 0;
     let bestDist = Infinity;
     for (let i = 0; i < n; i++) {

@@ -347,11 +347,14 @@ export function makeCaveSegment(
   seed: number,
   level: CaveLevelVisual = 'middle',
   floorYStart = 0,
-  floorYEnd = 0
+  floorYEnd = 0,
+  narrowBias: -1 | 0 | 1 = 0
 ): THREE.Group {
   const g = new THREE.Group();
   const pal = LEVEL_PALETTES[level] ?? LEVEL_PALETTES.middle;
   const floorW = lanes * 2.2 + 0.4;
+  // Shift narrow sections so the missing lane is on one side (no centered hallway)
+  const xShift = narrowBias * (2.2 / 2);
   const dy = floorYEnd - floorYStart;
   const incline = Math.atan2(-dy, length); // rotation.x so +z end is at floorYEnd relative to start
 
@@ -380,7 +383,7 @@ export function makeCaveSegment(
     // Lateral bend for curves: path drifts toward the turn direction through the segment
     const xBend = turnSign * 1.6 * Math.sin(t0 * Math.PI);
     const slab = new THREE.Mesh(new THREE.BoxGeometry(floorW, 0.28, sliceLen + 0.05), floorMat);
-    slab.position.set(xBend, yMid - 0.14, zMid);
+    slab.position.set(xBend + xShift, yMid - 0.14, zMid);
     if (isRamp || isSlide) {
       slab.rotation.x = incline;
     }
@@ -399,7 +402,7 @@ export function makeCaveSegment(
   });
   const wallBaseY = (floorYStart + floorYEnd) / 2;
   for (const side of [-1, 1] as const) {
-    const baseX = side * (floorW / 2 + 0.35);
+    const baseX = side * (floorW / 2 + 0.35) + xShift;
     const bulge = turnSign ? side * turnSign * 0.55 : 0;
     // Stack uneven rock columns for a canyon look
     const cols = Math.max(3, Math.floor(length / 5));
