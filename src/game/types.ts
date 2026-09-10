@@ -93,7 +93,7 @@ export interface RunStats {
 
 export const LANE_WIDTH = 2.2;
 export const LANE_COUNT_DEFAULT = 3;
-export const JUMP_DURATION = 3.0; // 3× prior hang time
+export const JUMP_DURATION = 2.0; // less floaty than 3s
 export const SLIDE_DURATION = 1.65; // 3× prior slide time
 export const JUMP_HEIGHT = 2.0;
 export const CAUGHT_UP_DURATION = 60;
