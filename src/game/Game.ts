@@ -547,8 +547,25 @@ export class Game {
       return;
     }
 
+    // Already barefoot bikini — trap is fatal
+    if (this.player.clothing <= 0) {
+      this.lastFatalTrap = trapKind;
+      this.playCinematic(
+        {
+          kind: 'gameOver',
+          clothing: 0,
+          trapKind,
+          trapGameOver: true,
+          message: `${TRAPS[trapKind]?.name ?? 'Trap'} wins — tickled out!`,
+          duration: 2.8,
+        },
+        () => this.endRun(false, true)
+      );
+      return;
+    }
+
     if (this.chase.isCaughtUp()) {
-      // Dual tickle
+      // Dual tickle while still clothed: strip to bikini and keep running
       this.playCinematic(
         {
           kind: 'dualTickle',
@@ -557,52 +574,25 @@ export class Game {
           duration: 2.6,
         },
         () => {
-          if (this.player.clothing >= 3) {
-            // lose ALL clothing and escape
-            this.stats.clothingLost += this.player.clothing;
-            this.player.setClothing(0);
-            this.chase.reset();
-            this.player.invuln = 2;
-            this.playCinematic(
-              { kind: 'escape', clothing: 0, duration: 1.4 },
-              () => this.beginCountdownAfterInterrupt()
-            );
-          } else {
-            this.player.setClothing(0);
-            this.endRun(false);
-          }
-        }
-      );
-      return;
-    }
-
-    // Normal trap: lose 1 clothing, monster catches up
-    const before = this.player.clothing;
-    this.player.loseClothing(1);
-    this.stats.clothingLost += before - this.player.clothing;
-    this.chase.forceCatchUp();
-
-    if (this.player.clothing <= 0) {
-      this.lastFatalTrap = trapKind;
-      // Final strip tickle, then trap game-over still (bikini bottoms)
-      this.playCinematic(
-        { kind: 'trapTickle', clothing: 0, trapKind, duration: 2.2 },
-        () => {
+          const lost = this.player.clothing;
+          this.stats.clothingLost += lost;
+          this.player.setClothing(0);
+          this.chase.reset();
+          this.player.invuln = 2;
           this.playCinematic(
-            {
-              kind: 'gameOver',
-              clothing: 0,
-              trapKind,
-              trapGameOver: true,
-              message: `${TRAPS[trapKind]?.name ?? 'Trap'} wins — tickled out!`,
-              duration: 2.8,
-            },
-            () => this.endRun(false, true)
+            { kind: 'escape', clothing: 0, duration: 1.4 },
+            () => this.beginCountdownAfterInterrupt()
           );
         }
       );
       return;
     }
+
+    // Normal trap: strip 1 piece (can land on bikini) and keep running
+    const before = this.player.clothing;
+    this.player.loseClothing(1);
+    this.stats.clothingLost += before - this.player.clothing;
+    this.chase.forceCatchUp();
 
     this.playCinematic(
       { kind: 'trapTickle', clothing: this.player.clothing, trapKind },
@@ -611,30 +601,47 @@ export class Game {
   }
 
   private resolveMonsterCatch(_reason: string): void {
+    // Fatal only if already barefoot bikini
+    if (this.player.clothing <= 0) {
+      this.lastFatalTrap = null;
+      this.playCinematic(
+        {
+          kind: 'monsterCatch',
+          clothing: 0,
+          duration: 2.5,
+          message: 'Caught in a bikini — no more lives!',
+        },
+        () => this.endRun(false)
+      );
+      return;
+    }
+
     const full = this.player.clothing >= 3;
     this.playCinematic(
       {
         kind: 'monsterCatch',
         clothing: this.player.clothing,
         duration: 2.5,
-        message: full ? 'Harsh tickle! You lose shirt & pants!' : 'The monster finishes the tickle…',
+        message: full
+          ? 'Harsh tickle! You lose shirt & pants!'
+          : 'The Tickle Monster strips you — keep running!',
       },
       () => {
         if (full) {
-          // lose 2 clothing, escape, keep running
+          // First harsh catch: lose 2, escape (may land on lingerie)
           this.player.loseClothing(2);
           this.stats.clothingLost += 2;
-          this.chase.reset();
-          this.player.invuln = 2;
-          this.playCinematic(
-            { kind: 'escape', clothing: this.player.clothing, duration: 1.4 },
-            () => this.beginCountdownAfterInterrupt()
-          );
         } else {
+          // Second survivable catch: down to barefoot bikini, still alive
           this.stats.clothingLost += this.player.clothing;
           this.player.setClothing(0);
-          this.endRun(false);
         }
+        this.chase.reset();
+        this.player.invuln = 2;
+        this.playCinematic(
+          { kind: 'escape', clothing: this.player.clothing, duration: 1.4 },
+          () => this.beginCountdownAfterInterrupt()
+        );
       }
     );
   }
