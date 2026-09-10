@@ -103,7 +103,7 @@ export const MAGNET_COOLDOWN = 30;
 export const MAGNET_DURATION = 8;
 export const BOOST_COOLDOWN = 35;
 export const BOOST_DURATION = 5;
-export const STEPS_PER_SEC = 4; // original run speed
+export const STEPS_PER_SEC = 4.2; // original + 5%
 
 export function metersPerStep(distance: number): number {
   if (distance >= 1000) return 2.11;

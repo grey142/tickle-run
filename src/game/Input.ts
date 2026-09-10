@@ -271,7 +271,7 @@ export class Input {
     const tilt = this.tiltAxisValue();
     // Prefer tilt when available; drag remains fallback (or additive when no tilt)
     if (Math.abs(tilt) > 0.01) {
-      v += tilt;
+      v -= tilt; // phone lean matches on-screen left/right
     } else {
       v += Math.max(-1, Math.min(1, -this.dragX)); // match swipe mirror
     }
